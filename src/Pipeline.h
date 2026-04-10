@@ -38,7 +38,8 @@ public:
         std::wstring logPath;             // telemetry CSV (empty = no log)
         HWND         hwnd       = nullptr;
         bool         debugD3D   = false;
-        bool         compareMode = false; // --compare: show interpolated left, original right
+        bool         compareMode    = false; // --compare: show interpolated left, original right
+        bool         halfRateInput  = false; // --half-rate: consume every other input frame (30fps game in 60fps container)
         UINT         screenW    = 0;      // full screen dimensions for compare mode swapchain
         UINT         screenH    = 0;
     };

@@ -159,6 +159,7 @@ void Pipeline::RifeThread()
         auto fence = ctx_->CreateFenceSync();
 
         std::optional<CapturedFrame> prevFrame;
+        bool skipNext = false; // used by halfRateInput to drop every other frame
 
         while (running_)
         {
@@ -167,6 +168,26 @@ void Pipeline::RifeThread()
 
             CapturedFrame frame = std::move(*frameOpt);
             telemetry_->OnCaptureFrame();
+
+            // ── Half-rate input: drop every other frame ──────────────────────
+            // Xbox One S (and similar consoles) lock 30fps games to a 60fps
+            // container, resulting in duplicate frames.  Dropping every other
+            // frame gives RIFE unique A/B pairs instead of wasted A/A pairs.
+            if (cfg_.halfRateInput)
+            {
+                if (skipNext)
+                {
+                    if (frame.tex11)
+                    {
+                        ctx_->on12->ReturnUnderlyingResource(
+                            frame.tex11.Get(), 0, nullptr, nullptr);
+                        frame.tex11 = nullptr;
+                    }
+                    skipNext = false;
+                    continue;
+                }
+                skipNext = true;
+            }
 
             if (!interpolation_.load())
             {
