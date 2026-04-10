@@ -48,22 +48,51 @@ Pipeline::Pipeline(const Config& cfg)
 
     converter_ = std::make_unique<TextureConverter>(*ctx_);
     rife_      = std::make_unique<RifeInference>(cfg_.onnxPath, *ctx_, pw, ph);
-    presenter_ = std::make_unique<SwapPresenter>(hwnd_, *ctx_, pw, ph);
+    presenter_ = std::make_unique<SwapPresenter>(hwnd_, *ctx_, pw, ph,
+                     cfg_.compareMode, cfg_.screenW, cfg_.screenH);
 
-    // Overlay (D2D text on top of swap chain back buffers)
-    try
+    // Allocate reference BGRA texture for compare mode (right-half original frame)
+    if (cfg_.compareMode && vidW > 0 && vidH > 0)
     {
-        overlay_ = std::make_unique<Overlay>(
-            *ctx_, presenter_->SwapChain(),
-            SwapPresenter::BUFFER_COUNT, pw, ph);
-        presenter_->SetOverlay(overlay_.get());
-        printf("[pipeline] overlay ready\n"); fflush(stdout);
+        D3D12_HEAP_PROPERTIES hp = {};
+        hp.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+        D3D12_RESOURCE_DESC rd = {};
+        rd.Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        rd.Width            = vidW;
+        rd.Height           = vidH;
+        rd.DepthOrArraySize = 1;
+        rd.MipLevels        = 1;
+        rd.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+        rd.SampleDesc.Count = 1;
+        rd.Flags            = D3D12_RESOURCE_FLAG_NONE;
+
+        HR_CHECK(ctx_->device12->CreateCommittedResource(
+            &hp, D3D12_HEAP_FLAG_NONE, &rd,
+            D3D12_RESOURCE_STATE_COMMON, nullptr,
+            IID_PPV_ARGS(&refTex_)));
+        printf("[pipeline] compare mode: reference BGRA texture allocated\n");
+        fflush(stdout);
     }
-    catch (const std::exception& ex)
+
+    // Overlay (D2D text on top of swap chain back buffers).
+    // Skipped in compare mode: swapchain is full-screen dims, not padded-video dims.
+    if (!cfg_.compareMode)
     {
-        printf("[pipeline] overlay init failed (%s) -- continuing without\n",
-               ex.what()); fflush(stdout);
-        overlay_ = nullptr;
+        try
+        {
+            overlay_ = std::make_unique<Overlay>(
+                *ctx_, presenter_->SwapChain(),
+                SwapPresenter::BUFFER_COUNT, pw, ph);
+            presenter_->SetOverlay(overlay_.get());
+            printf("[pipeline] overlay ready\n"); fflush(stdout);
+        }
+        catch (const std::exception& ex)
+        {
+            printf("[pipeline] overlay init failed (%s) -- continuing without\n",
+                   ex.what()); fflush(stdout);
+            overlay_ = nullptr;
+        }
     }
 }
 
@@ -167,7 +196,7 @@ void Pipeline::RifeThread()
             {
         printf("[rife] seeding frame 0\n"); fflush(stdout);
                 converter_->BGRAtoNCHW(
-                    frame.texBGRA.Get(), rife_->InBuf0(),
+                    frame.texBGRA.Get(), rife_->InBuf0(), nullptr,
                     frame.width, frame.height, pw, ph, fence);
                 fence.Wait();
 
@@ -183,8 +212,9 @@ void Pipeline::RifeThread()
             }
 
             // ── Convert current frame to InBuf1 ─────────────────────────────
+            // Also copies BGRA to refTex_ in compare mode (refTex_ is null otherwise).
             converter_->BGRAtoNCHW(
-                frame.texBGRA.Get(), rife_->InBuf1(),
+                frame.texBGRA.Get(), rife_->InBuf1(), refTex_.Get(),
                 frame.width, frame.height, pw, ph, fence);
             fence.Wait();
 
@@ -207,6 +237,7 @@ void Pipeline::RifeThread()
             {
                 PresentFrame pf;
                 pf.nchwBuf = rife_->OutBuf();
+                pf.bgraRef = refTex_.Get();  // null in normal mode, BGRA copy in compare mode
                 pf.vidW    = frame.width;
                 pf.vidH    = frame.height;
                 pf.paddedW = pw;
@@ -228,6 +259,7 @@ void Pipeline::RifeThread()
             {
                 PresentFrame pf;
                 pf.nchwBuf = rife_->InBuf0();
+                pf.bgraRef = refTex_.Get();  // same reference frame shown for both presents
                 pf.vidW    = frame.width;
                 pf.vidH    = frame.height;
                 pf.paddedW = pw;
@@ -292,7 +324,8 @@ void Pipeline::PresentThread()
             {
                 std::string stats = telemetry_->StatsLine();
                 presenter_->Present(pf.nchwBuf, pf.vidW, pf.vidH,
-                                    pf.paddedW, pf.paddedH, stats.c_str());
+                                    pf.paddedW, pf.paddedH, stats.c_str(),
+                                    pf.bgraRef);
             }
             else
             {

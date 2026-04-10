@@ -11,12 +11,15 @@ public:
     explicit TextureConverter(const D3DContext& ctx);
     ~TextureConverter() = default;
 
-    // Convert a B8G8R8A8_UNORM texture to an NCHW float32 buffer.
-    // bgraIn:   BGRA D3D12 resource (at least D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE).
-    // nchwOut:  pre-allocated buffer with UAV (3 * paddedW * paddedH floats).
-    // fence:    signalled on cmdQueue12 after all commands are submitted.
+    // Convert a B8G8R8A8_UNORM texture to an NCHW float16 buffer.
+    // bgraIn:      BGRA D3D12 resource (state COMMON on entry, restored on exit).
+    // nchwOut:     pre-allocated buffer with UAV (3 * paddedW * paddedH fp16 values).
+    // bgraRefOut:  optional D3D12 Texture2D to receive a BGRA copy (for compare mode).
+    //              Must be COMMON on entry; left in COMMON on exit.
+    // fence:       signalled on cmdQueue12 after all commands are submitted.
     void BGRAtoNCHW(ID3D12Resource* bgraIn,
                     ID3D12Resource* nchwOut,
+                    ID3D12Resource* bgraRefOut,
                     UINT width, UINT height,
                     UINT paddedW, UINT paddedH,
                     D3DContext::FenceSync& fence);

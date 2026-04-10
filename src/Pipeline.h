@@ -20,6 +20,7 @@
 struct PresentFrame
 {
     ID3D12Resource* nchwBuf  = nullptr;   // weak ref into RifeInference buffers
+    ID3D12Resource* bgraRef  = nullptr;   // optional: original BGRA copy for compare mode right half
     UINT            vidW     = 0;
     UINT            vidH     = 0;
     UINT            paddedW  = 0;
@@ -37,6 +38,9 @@ public:
         std::wstring logPath;             // telemetry CSV (empty = no log)
         HWND         hwnd       = nullptr;
         bool         debugD3D   = false;
+        bool         compareMode = false; // --compare: show interpolated left, original right
+        UINT         screenW    = 0;      // full screen dimensions for compare mode swapchain
+        UINT         screenH    = 0;
     };
 
     explicit Pipeline(const Config& cfg);
@@ -74,6 +78,8 @@ private:
 
     FrameQueue<CapturedFrame> captureQueue_{ 3 };  // shallow — drop old frames
     FrameQueue<PresentFrame>  presentQueue_{ 4 };  // 2 frames per RIFE call → need depth ≥ 4
+
+    ComPtr<ID3D12Resource>    refTex_;              // D3D12 BGRA copy used as compare-mode right panel
 
     std::thread captureThread_;
     std::thread rifeThread_;

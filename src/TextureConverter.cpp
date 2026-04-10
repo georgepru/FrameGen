@@ -90,6 +90,7 @@ void TextureConverter::BuildPipeline()
 // ---------------------------------------------------------------------------
 void TextureConverter::BGRAtoNCHW(ID3D12Resource* bgraIn,
                                    ID3D12Resource* nchwOut,
+                                   ID3D12Resource* bgraRefOut,
                                    UINT width, UINT height,
                                    UINT paddedW, UINT paddedH,
                                    D3DContext::FenceSync& fence)
@@ -131,8 +132,48 @@ void TextureConverter::BGRAtoNCHW(ID3D12Resource* bgraIn,
     HR_CHECK(cmdAlloc_->Reset());
     HR_CHECK(cmdList_->Reset(cmdAlloc_.Get(), pso_.Get()));
 
-    // Transition bgraIn to SRV-readable
+    if (bgraRefOut)
     {
+        // Copy the BGRA frame to the reference texture (for compare-mode right panel)
+        // before transitioning bgraIn for the compute shader.
+        D3D12_RESOURCE_BARRIER bars[2] = {};
+        // bgraIn: COMMON → COPY_SOURCE
+        bars[0].Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        bars[0].Transition.pResource   = bgraIn;
+        bars[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+        bars[0].Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_SOURCE;
+        bars[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        // bgraRefOut: COMMON → COPY_DEST
+        bars[1].Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        bars[1].Transition.pResource   = bgraRefOut;
+        bars[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+        bars[1].Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_DEST;
+        bars[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        cmdList_->ResourceBarrier(2, bars);
+
+        D3D12_TEXTURE_COPY_LOCATION dst = {}, src = {};
+        dst.pResource        = bgraRefOut;
+        dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        dst.SubresourceIndex = 0;
+        src.pResource        = bgraIn;
+        src.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        src.SubresourceIndex = 0;
+        D3D12_BOX box = { 0, 0, 0, width, height, 1 };
+        cmdList_->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
+
+        // bgraRefOut: COPY_DEST → COMMON (SRV-readable via implicit promotion)
+        // bgraIn: COPY_SOURCE → NON_PIXEL_SHADER_RESOURCE (for compute)
+        bars[0].Transition.pResource   = bgraRefOut;
+        bars[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        bars[0].Transition.StateAfter  = D3D12_RESOURCE_STATE_COMMON;
+        bars[1].Transition.pResource   = bgraIn;
+        bars[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+        bars[1].Transition.StateAfter  = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        cmdList_->ResourceBarrier(2, bars);
+    }
+    else
+    {
+        // Transition bgraIn to SRV-readable (standard path, no reference copy)
         D3D12_RESOURCE_BARRIER bar = {};
         bar.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         bar.Transition.pResource   = bgraIn;

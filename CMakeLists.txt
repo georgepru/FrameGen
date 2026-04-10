@@ -69,9 +69,11 @@ function(compile_shader INPUT ENTRY PROFILE VARNAME OUTPUT_H)
     set_source_files_properties(${OUT} PROPERTIES GENERATED TRUE HEADER_FILE_ONLY TRUE)
 endfunction()
 
-compile_shader(${SHADER_DIR}/BGRAtoNCHW.hlsl  main   cs_5_0  g_BGRAtoNCHW   BGRAtoNCHW.h)
+compile_shader(${SHADER_DIR}/BGRAtoNCHW.hlsl  main   cs_5_0  g_BGRAtoNCHW    BGRAtoNCHW.h)
 compile_shader(${SHADER_DIR}/NCHWPresent.hlsl  VSMain vs_5_0  g_NCHWPresentVS NCHWPresentVS.h)
 compile_shader(${SHADER_DIR}/NCHWPresent.hlsl  PSMain ps_5_0  g_NCHWPresentPS NCHWPresentPS.h)
+compile_shader(${SHADER_DIR}/BGRAPresent.hlsl  VSMain vs_5_0  g_BGRAPresentVS BGRAPresentVS.h)
+compile_shader(${SHADER_DIR}/BGRAPresent.hlsl  PSMain ps_5_0  g_BGRAPresentPS BGRAPresentPS.h)
 
 target_include_directories(framegen_mvp PRIVATE
     src

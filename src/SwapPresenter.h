@@ -12,15 +12,18 @@ public:
     static constexpr UINT BUFFER_COUNT     = 2;
     static constexpr UINT MAX_FRAME_LATENCY = 1;  // tightest: 1 frame queued
 
-    SwapPresenter(HWND hwnd, const D3DContext& ctx, UINT width, UINT height);
+    SwapPresenter(HWND hwnd, const D3DContext& ctx, UINT paddedW, UINT paddedH,
+                  bool compareMode = false, UINT screenW = 0, UINT screenH = 0);
     ~SwapPresenter();
 
-    // Present the NCHW float32 output buffer to the display.
+    // Present the NCHW float16 output buffer to the display.
+    // In compare mode, also renders bgraRef (original frame) to the right half.
     // Blocks on the waitable object to ensure we never get ahead of the display.
     void Present(ID3D12Resource* nchwBuf,
                  UINT vidW, UINT vidH,
                  UINT paddedW, UINT paddedH,
-                 const char* overlayStats = nullptr);
+                 const char* overlayStats = nullptr,
+                 ID3D12Resource* bgraRef  = nullptr);
 
     // Also expose a pass-through path (no RIFE — raw BGRA texture).
     // Used when interpolation is disabled.
@@ -42,7 +45,8 @@ private:
     void BuildBGRAPipeline();
 
     const D3DContext& ctx_;
-    UINT width_, height_;
+    UINT width_, height_;      // swapchain dimensions (full screen in compare mode)
+    bool     compareMode_      = false;
     bool     interpolationEnabled_ = true;
     Overlay* overlay_              = nullptr;
 

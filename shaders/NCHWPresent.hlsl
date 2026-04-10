@@ -11,10 +11,14 @@ Buffer<min16float> nchwBuf : register(t0);
 
 cbuffer NCHWPresentCB : register(b0)
 {
-    uint  Width;    // rendered viewport width (unpadded video width)
-    uint  Height;   // rendered viewport height
-    uint  Stride;   // buffer row stride in floats (= paddedWidth)
-    float Gamma;    // 1.0 = linear pass-through, 2.2 = sRGB approx
+    uint  Width;      // rendered viewport width (unpadded video width)
+    uint  Height;     // rendered viewport height
+    uint  Stride;     // buffer row stride in floats (= paddedWidth)
+    float Gamma;      // 1.0 = linear pass-through, 2.2 = sRGB approx
+    float UVOffsetX;  // letterbox/pillarbox correction (0 in fullscreen mode)
+    float UVOffsetY;
+    float UVScaleX;   // fraction of viewport covered by video (1 in fullscreen mode)
+    float UVScaleY;
 };
 
 // ── Vertex shader ──────────────────────────────────────────────────────────
@@ -38,8 +42,14 @@ VSOut VSMain(uint id : SV_VertexID)
 
 float4 PSMain(VSOut i) : SV_Target
 {
-    uint px = (uint)(i.uv.x * Width);
-    uint py = (uint)(i.uv.y * Height);
+    // Map viewport UV [0,1] → video UV [0,1], applying letterbox/pillarbox
+    float2 videoUV = (i.uv - float2(UVOffsetX, UVOffsetY))
+                   / float2(UVScaleX, UVScaleY);
+    if (any(videoUV < 0.0f) || any(videoUV > 1.0f))
+        return float4(0, 0, 0, 1);
+
+    uint px = (uint)(videoUV.x * Width);
+    uint py = (uint)(videoUV.y * Height);
     px = min(px, Width  - 1u);
     py = min(py, Height - 1u);
 

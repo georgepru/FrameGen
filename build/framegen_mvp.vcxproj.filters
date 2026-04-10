@@ -42,6 +42,12 @@
     <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\NCHWPresentPS.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentVS.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentPS.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\BGRAtoNCHW.h.rule">
@@ -51,6 +57,12 @@
       <Filter>CMake Rules</Filter>
     </CustomBuild>
     <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\NCHWPresentPS.h.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\BGRAPresentVS.h.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\BGRAPresentPS.h.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
     <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\CMakeLists.txt" />

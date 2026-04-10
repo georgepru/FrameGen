@@ -6,13 +6,19 @@
 
 #include "NCHWPresentVS.h"
 #include "NCHWPresentPS.h"
+#include "BGRAPresentVS.h"
+#include "BGRAPresentPS.h"
 
 #pragma comment(lib, "dxguid.lib")
 
 // ---------------------------------------------------------------------------
 SwapPresenter::SwapPresenter(HWND hwnd, const D3DContext& ctx,
-                             UINT width, UINT height)
-    : ctx_(ctx), width_(width), height_(height)
+                             UINT paddedW, UINT paddedH,
+                             bool compareMode, UINT screenW, UINT screenH)
+    : ctx_(ctx)
+    , width_ (compareMode && screenW ? screenW : paddedW)
+    , height_(compareMode && screenH ? screenH : paddedH)
+    , compareMode_(compareMode)
 {
     auto* dev     = ctx_.device12.Get();
     auto* queue   = ctx_.cmdQueue12.Get();
@@ -20,8 +26,8 @@ SwapPresenter::SwapPresenter(HWND hwnd, const D3DContext& ctx,
 
     // ── Swap chain ──────────────────────────────────────────────────────────
     DXGI_SWAP_CHAIN_DESC1 scDesc = {};
-    scDesc.Width       = width;
-    scDesc.Height      = height;
+    scDesc.Width       = width_;
+    scDesc.Height      = height_;
     scDesc.Format      = DXGI_FORMAT_R8G8B8A8_UNORM;
     scDesc.SampleDesc  = { 1, 0 };
     scDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -81,11 +87,11 @@ SwapPresenter::SwapPresenter(HWND hwnd, const D3DContext& ctx,
                                     IID_PPV_ARGS(&cmdList_)));
     cmdList_->Close();
 
-    // ── Constant buffer (256-byte aligned) ─────────────────────────────────
+    // ── Constant buffer (512 bytes: 256 for NCHW CB + 256 for BGRA CB) ──────────
     D3D12_HEAP_PROPERTIES hp = { D3D12_HEAP_TYPE_UPLOAD };
     D3D12_RESOURCE_DESC   rd = {};
     rd.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER;
-    rd.Width            = 256;
+    rd.Width            = 512;
     rd.Height           = 1;
     rd.DepthOrArraySize = 1;
     rd.MipLevels        = 1;
@@ -97,6 +103,7 @@ SwapPresenter::SwapPresenter(HWND hwnd, const D3DContext& ctx,
     cbBuf_->Map(0, &readRange, &cbMapped_);
 
     BuildPipeline();
+    if (compareMode_) BuildBGRAPipeline();
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +165,8 @@ void SwapPresenter::BuildPipeline()
 void SwapPresenter::Present(ID3D12Resource* nchwBuf,
                             UINT vidW, UINT vidH,
                             UINT paddedW, UINT paddedH,
-                            const char* overlayStats)
+                            const char* overlayStats,
+                            ID3D12Resource* bgraRef)
 {
     // Wait on waitable to avoid queuing more than MAX_FRAME_LATENCY frames.
     WaitForSingleObject(waitObject_, INFINITE);
@@ -176,22 +184,64 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
     HR_CHECK(cmdAllocs_[frameIdx]->Reset());
     HR_CHECK(cmdList_->Reset(cmdAllocs_[frameIdx].Get(), pso_.Get()));
 
-    // Update constant buffer
-    struct CB { UINT width, height, stride; float gamma; };
-    CB cb{ vidW, vidH, paddedW, 1.0f };
+    // ── Aspect-ratio UV correction ──────────────────────────────────────────
+    // In compare mode: video fills the left-half panel with letterbox/pillarbox.
+    // In normal mode:  UV offset = (0,0), UV scale = (1,1) → fills viewport.
+    float uvOffX = 0.0f, uvOffY = 0.0f, uvScaleX = 1.0f, uvScaleY = 1.0f;
+    if (compareMode_)
+    {
+        float panelW   = float(width_) * 0.5f;
+        float panelH   = float(height_);
+        float vidAsp   = float(vidW) / float(vidH);
+        float panAsp   = panelW / panelH;
+        if (vidAsp > panAsp)  // letterbox (bars top + bottom)
+        {
+            uvScaleY = panAsp / vidAsp;
+            uvOffY   = (1.0f - uvScaleY) * 0.5f;
+        }
+        else                  // pillarbox (bars left + right)
+        {
+            uvScaleX = vidAsp / panAsp;
+            uvOffX   = (1.0f - uvScaleX) * 0.5f;
+        }
+    }
+
+    // ── Update NCHW constant buffer (at cbBuf_ + offset 0) ─────────────────
+    struct CB { UINT width, height, stride; float gamma, uvOffX, uvOffY, uvScaleX, uvScaleY; };
+    CB cb{ vidW, vidH, paddedW, 1.0f, uvOffX, uvOffY, uvScaleX, uvScaleY };
     memcpy(cbMapped_, &cb, sizeof(cb));
 
-    // SRV: NCHW buffer (Buffer<min16float> in HLSL)
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format                    = DXGI_FORMAT_R16_FLOAT;
-    srvDesc.ViewDimension             = D3D12_SRV_DIMENSION_BUFFER;
-    srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Buffer.NumElements        = 3 * paddedW * paddedH;
-    ctx_.device12->CreateShaderResourceView(
-        nchwBuf, &srvDesc,
-        srvHeap_->GetCPUDescriptorHandleForHeapStart());
+    // ── Update BGRA constant buffer (at cbBuf_ + offset 256) ───────────────
+    if (compareMode_ && bgraRef)
+    {
+        struct BGRACB { float uvOffX, uvOffY, uvScaleX, uvScaleY; };
+        BGRACB bcb{ uvOffX, uvOffY, uvScaleX, uvScaleY };
+        memcpy(static_cast<char*>(cbMapped_) + 256, &bcb, sizeof(bcb));
+    }
 
-    // Transition back buffer → RT
+    // ── SRV slot 0: NCHW buffer ─────────────────────────────────────────────
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format                  = DXGI_FORMAT_R16_FLOAT;
+    srvDesc.ViewDimension           = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Buffer.NumElements      = 3 * paddedW * paddedH;
+    ctx_.device12->CreateShaderResourceView(
+        nchwBuf, &srvDesc, srvHeap_->GetCPUDescriptorHandleForHeapStart());
+
+    // ── SRV slot 1: BGRA reference texture (compare mode only) ─────────────
+    if (compareMode_ && bgraRef)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC bsrv = {};
+        bsrv.Format                  = DXGI_FORMAT_B8G8R8A8_UNORM;
+        bsrv.ViewDimension           = D3D12_SRV_DIMENSION_TEXTURE2D;
+        bsrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        bsrv.Texture2D.MipLevels    = 1;
+        auto h = srvHeap_->GetCPUDescriptorHandleForHeapStart();
+        h.ptr += srvDescSize_;  // slot 1
+        ctx_.device12->CreateShaderResourceView(bgraRef, &bsrv, h);
+    }
+
+    // ── Transition back buffer → RT ─────────────────────────────────────────
     D3D12_RESOURCE_BARRIER toRT = {};
     toRT.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     toRT.Transition.pResource   = backBuffers_[frameIdx].Get();
@@ -203,23 +253,45 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
     auto rtv = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
     rtv.ptr += frameIdx * rtvDescSize_;
 
-    D3D12_VIEWPORT vp = { 0, 0, (float)width_, (float)height_, 0, 1 };
-    D3D12_RECT     sc = { 0, 0, (LONG)width_,  (LONG)height_ };
-    cmdList_->RSSetViewports(1, &vp);
-    cmdList_->RSSetScissorRects(1, &sc);
     cmdList_->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-
     ID3D12DescriptorHeap* heaps[] = { srvHeap_.Get() };
     cmdList_->SetDescriptorHeaps(1, heaps);
-    cmdList_->SetGraphicsRootSignature(rootSig_.Get());
-    cmdList_->SetGraphicsRootConstantBufferView(0, cbBuf_->GetGPUVirtualAddress());
-    cmdList_->SetGraphicsRootDescriptorTable(
-        1, srvHeap_->GetGPUDescriptorHandleForHeapStart());
-
     cmdList_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    cmdList_->DrawInstanced(3, 1, 0, 0);  // fullscreen triangle
 
-    // Transition back buffer → PRESENT
+    // ── LEFT HALF (or full screen in normal mode): NCHW buffer ─────────────
+    {
+        UINT halfW = compareMode_ ? (width_ / 2) : width_;
+        D3D12_VIEWPORT vp = { 0, 0, float(halfW), float(height_), 0, 1 };
+        D3D12_RECT     sc = { 0, 0, LONG(halfW),  LONG(height_) };
+        cmdList_->RSSetViewports(1, &vp);
+        cmdList_->RSSetScissorRects(1, &sc);
+        cmdList_->SetGraphicsRootSignature(rootSig_.Get());
+        cmdList_->SetPipelineState(pso_.Get());
+        cmdList_->SetGraphicsRootConstantBufferView(0, cbBuf_->GetGPUVirtualAddress());
+        cmdList_->SetGraphicsRootDescriptorTable(
+            1, srvHeap_->GetGPUDescriptorHandleForHeapStart());
+        cmdList_->DrawInstanced(3, 1, 0, 0);
+    }
+
+    // ── RIGHT HALF: original BGRA frame (compare mode only) ────────────────
+    if (compareMode_ && bgraRef && bgraPSO_)
+    {
+        UINT halfW = width_ / 2;
+        D3D12_VIEWPORT vp = { float(halfW), 0, float(width_ - halfW), float(height_), 0, 1 };
+        D3D12_RECT     sc = { LONG(halfW), 0, LONG(width_), LONG(height_) };
+        cmdList_->RSSetViewports(1, &vp);
+        cmdList_->RSSetScissorRects(1, &sc);
+        cmdList_->SetGraphicsRootSignature(bgraRS_.Get());
+        cmdList_->SetPipelineState(bgraPSO_.Get());
+        cmdList_->SetGraphicsRootConstantBufferView(
+            0, cbBuf_->GetGPUVirtualAddress() + 256);
+        auto bgrasrv = srvHeap_->GetGPUDescriptorHandleForHeapStart();
+        bgrasrv.ptr += srvDescSize_;  // slot 1
+        cmdList_->SetGraphicsRootDescriptorTable(1, bgrasrv);
+        cmdList_->DrawInstanced(3, 1, 0, 0);
+    }
+
+    // ── Transition back buffer → PRESENT ───────────────────────────────────
     D3D12_RESOURCE_BARRIER toPresent = {};
     toPresent.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     toPresent.Transition.pResource   = backBuffers_[frameIdx].Get();
@@ -241,14 +313,8 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
     HR_CHECK(ctx_.cmdQueue12->Signal(
         frameFences_[frameIdx].Get(), fenceValues_[frameIdx]));
 
-    // SyncInterval=1: each Present() is held until the next vsync.
-    // This is required for correct 2x frame output: with tearing (SyncInterval=0)
-    // the DXGI frame-latency waitable fires almost immediately after Present(),
-    // allowing OutBuf and InBuf0 to be submitted back-to-back.  FLIP_DISCARD
-    // then silently throws away OutBuf before it is ever shown on screen,
-    // making the output look like 30 fps despite 60 presents/sec in telemetry.
-    // SyncInterval=1 gates each Present() to a vsync boundary (~16.7 ms at
-    // 60 Hz), so both frames in the pair are displayed for exactly one refresh.
+    // SyncInterval=1: gates each Present() to a vsync boundary so both frames
+    // in the interpolated pair are displayed for exactly one refresh.
     HR_CHECK(swapChain_->Present(1, 0));
 }
 
@@ -324,4 +390,64 @@ void SwapPresenter::PresentBGRA(ID3D12Resource* bgraTex,
         frameFences_[frameIdx].Get(), fenceValues_[frameIdx]));
 
     HR_CHECK(swapChain_->Present(0, DXGI_PRESENT_ALLOW_TEARING));
+}
+
+// ---------------------------------------------------------------------------
+// BGRA texture → right-half viewport pipeline (used only in compare mode).
+// ---------------------------------------------------------------------------
+void SwapPresenter::BuildBGRAPipeline()
+{
+    auto* dev = ctx_.device12.Get();
+
+    // Root signature: [0] CBV b0, [1] SRV table t0, static linear sampler s0
+    D3D12_DESCRIPTOR_RANGE srvRange = {};
+    srvRange.RangeType          = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRange.NumDescriptors     = 1;
+    srvRange.BaseShaderRegister = 0;
+
+    D3D12_ROOT_PARAMETER params[2] = {};
+    params[0].ParameterType             = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[0].Descriptor.ShaderRegister = 0;
+    params[0].ShaderVisibility          = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    params[1].ParameterType                       = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[1].DescriptorTable.NumDescriptorRanges = 1;
+    params[1].DescriptorTable.pDescriptorRanges   = &srvRange;
+    params[1].ShaderVisibility                    = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_STATIC_SAMPLER_DESC sampDesc = {};
+    sampDesc.Filter           = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+    sampDesc.AddressU         = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampDesc.AddressV         = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampDesc.AddressW         = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampDesc.ShaderRegister   = 0;
+    sampDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+    rsDesc.NumParameters     = 2;
+    rsDesc.pParameters       = params;
+    rsDesc.NumStaticSamplers = 1;
+    rsDesc.pStaticSamplers   = &sampDesc;
+    rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    ComPtr<ID3DBlob> blob, err;
+    HR_CHECK(D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+                                         &blob, &err));
+    HR_CHECK(dev->CreateRootSignature(0, blob->GetBufferPointer(),
+                                      blob->GetBufferSize(),
+                                      IID_PPV_ARGS(&bgraRS_)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature           = bgraRS_.Get();
+    psoDesc.VS                       = { g_BGRAPresentVS, sizeof(g_BGRAPresentVS) };
+    psoDesc.PS                       = { g_BGRAPresentPS, sizeof(g_BGRAPresentPS) };
+    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    psoDesc.SampleMask               = UINT_MAX;
+    psoDesc.PrimitiveTopologyType    = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.NumRenderTargets         = 1;
+    psoDesc.RTVFormats[0]            = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.SampleDesc               = { 1, 0 };
+    HR_CHECK(dev->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&bgraPSO_)));
 }

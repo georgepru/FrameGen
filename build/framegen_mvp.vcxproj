@@ -493,6 +493,118 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\BGRAPresentVS.h.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (VSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+fxc /nologo /T vs_5_0 /E VSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentVS.h /Vn g_BGRAPresentVS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentVS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (VSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+fxc /nologo /T vs_5_0 /E VSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentVS.h /Vn g_BGRAPresentVS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentVS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (VSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+fxc /nologo /T vs_5_0 /E VSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentVS.h /Vn g_BGRAPresentVS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentVS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (VSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+fxc /nologo /T vs_5_0 /E VSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentVS.h /Vn g_BGRAPresentVS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentVS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\BGRAPresentPS.h.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (PSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+fxc /nologo /T ps_5_0 /E PSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentPS.h /Vn g_BGRAPresentPS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentPS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (PSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+fxc /nologo /T ps_5_0 /E PSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentPS.h /Vn g_BGRAPresentPS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentPS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (PSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+fxc /nologo /T ps_5_0 /E PSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentPS.h /Vn g_BGRAPresentPS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentPS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Compiling shader C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl (PSMain)</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+fxc /nologo /T ps_5_0 /E PSMain /Fh C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/compiled_shaders/BGRAPresentPS.h /Vn g_BGRAPresentPS C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/shaders/BGRAPresent.hlsl
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\shaders\BGRAPresent.hlsl;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentPS.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
     <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\CMakeLists.txt">
       <UseUtf8Encoding>Always</UseUtf8Encoding>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/CMakeLists.txt</Message>
@@ -563,6 +675,8 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAtoNCHW.h" />
     <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\NCHWPresentVS.h" />
     <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\NCHWPresentPS.h" />
+    <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentVS.h" />
+    <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAPresentPS.h" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

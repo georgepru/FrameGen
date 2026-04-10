@@ -12,6 +12,9 @@
 // Usage (file-based test, no capture card needed):
 //   framegen_mvp.exe --file video.mp4 [rife.onnx]
 //
+// Usage (side-by-side compare: interpolated left, original right):
+//   framegen_mvp.exe --file video.mp4 --compare [rife.onnx]
+//
 // Defaults: rife.onnx in the exe directory, device 0.
 #include "Common.h"
 #include "Pipeline.h"
@@ -105,6 +108,7 @@ int main(int, char**)
     std::wstring onnxPath    = L"rife.onnx";
     UINT         deviceIndex = 0;
     std::wstring filePath;   // set via --file <path>; empty = use capture card
+    bool         compareMode = false; // --compare: side-by-side comparison window
 
     for (int i = 1; i < argc; ++i)
     {
@@ -112,6 +116,10 @@ int main(int, char**)
         if ((arg == L"--file" || arg == L"-f") && i + 1 < argc)
         {
             filePath = argv[++i];
+        }
+        else if (arg == L"--compare" || arg == L"-c")
+        {
+            compareMode = true;
         }
         else if (arg.size() > 5 &&
                  (arg.substr(arg.size()-4) == L".mp4"  ||
@@ -198,12 +206,15 @@ int main(int, char**)
 
     // ── Construct and start pipeline ────────────────────────────────────────
     Pipeline::Config cfg;
-    cfg.deviceIndex = deviceIndex;
-    cfg.filePath    = filePath;
-    cfg.onnxPath    = onnxPath;
-    cfg.logPath     = logPath;
-    cfg.hwnd        = hwnd;
-    cfg.debugD3D    = false;
+    cfg.deviceIndex  = deviceIndex;
+    cfg.filePath     = filePath;
+    cfg.onnxPath     = onnxPath;
+    cfg.logPath      = logPath;
+    cfg.hwnd         = hwnd;
+    cfg.debugD3D     = false;
+    cfg.compareMode  = compareMode;
+    cfg.screenW      = (UINT)GetSystemMetrics(SM_CXSCREEN);
+    cfg.screenH      = (UINT)GetSystemMetrics(SM_CYSCREEN);
 
     int exitCode = 0;
     try
