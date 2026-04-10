@@ -169,6 +169,34 @@ void Pipeline::RifeThread()
             CapturedFrame frame = std::move(*frameOpt);
             telemetry_->OnCaptureFrame();
 
+            // ── Gap detection: reset state after a capture hiccup ────────────
+            // UnwrapUnderlyingResource failures (e.g. Xbox signal drop / format
+            // change) cause CaptureSource to skip frames silently.  If the gap
+            // between this frame and the last one we actually processed is long
+            // (> 300 ms), the prevFrame is stale — interpolating across that gap
+            // would produce garbage.  Reset so we re-seed cleanly.
+            if (prevFrame)
+            {
+                LARGE_INTEGER qpcFreq;
+                QueryPerformanceFrequency(&qpcFreq);
+                double gapMs = static_cast<double>(
+                    frame.captureTime - prevFrame->captureTime)
+                    * 1000.0 / qpcFreq.QuadPart;
+                if (gapMs > 300.0)
+                {
+                    printf("[rife] %.0f ms gap detected, resetting frame pair\n", gapMs);
+                    fflush(stdout);
+                    if (prevFrame->tex11)
+                    {
+                        ctx_->on12->ReturnUnderlyingResource(
+                            prevFrame->tex11.Get(), 0, nullptr, nullptr);
+                        prevFrame->tex11 = nullptr;
+                    }
+                    prevFrame.reset();
+                    skipNext = false; // re-sync half-rate counter
+                }
+            }
+
             // ── Half-rate input: drop every other frame ──────────────────────
             // Xbox One S (and similar consoles) lock 30fps games to a 60fps
             // container, resulting in duplicate frames.  Dropping every other
