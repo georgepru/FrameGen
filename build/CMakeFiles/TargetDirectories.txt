@@ -1,0 +1,3 @@
+C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/CMakeFiles/framegen_mvp.dir
+C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/CMakeFiles/ZERO_CHECK.dir

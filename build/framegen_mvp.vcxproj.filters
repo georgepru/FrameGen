@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\D3DContext.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\CaptureSource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\FileSource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\TextureConverter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\RifeInference.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\SwapPresenter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\Pipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\Telemetry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\BGRAtoNCHW.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\NCHWPresentVS.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\compiled_shaders\NCHWPresentPS.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\BGRAtoNCHW.h.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\NCHWPresentVS.h.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\build\CMakeFiles\6b234ea15767940131c3621f00e8f21d\NCHWPresentPS.h.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{E0068AB2-0007-34F1-951B-8D07C0E972C3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{9328EF95-79C1-37D6-9504-8518BF7A0E37}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{05752377-7BE3-3385-A990-034DC4041084}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

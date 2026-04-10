@@ -1,0 +1,10 @@
+^C:\USERS\GEORG\DOCUMENTS\SYNCEDSTUFF\DEV\FRAMEGEN_MVP\BUILD\CMAKEFILES\B77D8032249F138C4422FB5EF0AD05E8\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp -BC:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/georg/Documents/SyncedStuff/Dev/framegen_mvp/build/FrameGenMVP.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

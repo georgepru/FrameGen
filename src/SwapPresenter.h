@@ -1,0 +1,69 @@
+// SwapPresenter.h
+// Manages a DXGI flip-model swap chain with a frame-latency waitable object.
+// Presents an NCHW float32 buffer (RIFE output) to a fullscreen window.
+#pragma once
+#include "Common.h"
+#include "D3DContext.h"
+
+class SwapPresenter
+{
+public:
+    static constexpr UINT BUFFER_COUNT     = 2;
+    static constexpr UINT MAX_FRAME_LATENCY = 1;  // tightest: 1 frame queued
+
+    SwapPresenter(HWND hwnd, const D3DContext& ctx, UINT width, UINT height);
+    ~SwapPresenter();
+
+    // Present the NCHW float32 output buffer to the display.
+    // Blocks on the waitable object to ensure we never get ahead of the display.
+    void Present(ID3D12Resource* nchwBuf,
+                 UINT vidW, UINT vidH,
+                 UINT paddedW, UINT paddedH);
+
+    // Also expose a pass-through path (no RIFE — raw BGRA texture).
+    // Used when interpolation is disabled.
+    void PresentBGRA(ID3D12Resource* bgraTex,
+                     UINT vidW, UINT vidH);
+
+    void SetInterpolationEnabled(bool en) { interpolationEnabled_ = en; }
+    bool IsInterpolationEnabled()  const  { return interpolationEnabled_; }
+
+private:
+    void BuildPipeline();
+    void BuildBGRAPipeline();
+
+    const D3DContext& ctx_;
+    UINT width_, height_;
+    bool interpolationEnabled_ = true;
+
+    ComPtr<IDXGISwapChain3>   swapChain_;
+    HANDLE                    waitObject_  = nullptr;
+
+    ComPtr<ID3D12Resource>            backBuffers_[BUFFER_COUNT];
+    ComPtr<ID3D12DescriptorHeap>      rtvHeap_;
+    UINT                              rtvDescSize_ = 0;
+
+    ComPtr<ID3D12DescriptorHeap>      srvHeap_;    // shader-visible: NCHW SRV
+    UINT                              srvDescSize_ = 0;
+
+    // NCHW present pipeline (float32 RIFE output)
+    ComPtr<ID3D12RootSignature>       rootSig_;
+    ComPtr<ID3D12PipelineState>       pso_;
+
+    // BGRA pass-through pipeline
+    ComPtr<ID3D12RootSignature>       bgraRS_;
+    ComPtr<ID3D12PipelineState>       bgraPSO_;
+
+    // Per-frame command infra
+    ComPtr<ID3D12CommandAllocator>    cmdAllocs_[BUFFER_COUNT];
+    ComPtr<ID3D12GraphicsCommandList> cmdList_;
+
+    // Per-frame fence for GPU/CPU sync
+    ComPtr<ID3D12Fence>               frameFences_[BUFFER_COUNT];
+    UINT64                            fenceValues_[BUFFER_COUNT] = {};
+    HANDLE                            fenceEvent_ = nullptr;
+
+    // Constant buffer (Width, Height, Stride, Gamma)
+    ComPtr<ID3D12Resource>            cbBuf_;
+    void*                             cbMapped_ = nullptr;
+};
