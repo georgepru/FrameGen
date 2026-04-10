@@ -28,7 +28,9 @@ Stack: C++20 / MSVC / CMake, D3D12, D3D11On12, ONNX Runtime 1.24.4 + DirectML EP
 1. **Visual Studio 2022** with "Desktop development with C++" workload
 2. **CMake** (included with VS, or install separately and add to PATH)
 3. All ONNX Runtime binaries are tracked in git (`deps/onnxruntime/lib/`) — no manual copy needed
-4. `rife.onnx` — **NOT in the repo**, copy it manually to `build\Release\rife.onnx` after building (see below)
+4. `rife.onnx` — **NOT in the repo**, copy it manually to `build\Release\rife.onnx` after building (see below).
+   This is **RIFE HDv3, FP16 export** — the file is `RIFEtest\preview_cpp\rife_fp16.onnx` (4,676,160 bytes).
+   It was exported via `RIFEtest\preview_cpp\export_onnx.py` from the HDv3 model weights.
 
 ---
 
