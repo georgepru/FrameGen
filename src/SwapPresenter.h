@@ -4,6 +4,7 @@
 #pragma once
 #include "Common.h"
 #include "D3DContext.h"
+#include "Overlay.h"
 
 class SwapPresenter
 {
@@ -18,15 +19,23 @@ public:
     // Blocks on the waitable object to ensure we never get ahead of the display.
     void Present(ID3D12Resource* nchwBuf,
                  UINT vidW, UINT vidH,
-                 UINT paddedW, UINT paddedH);
+                 UINT paddedW, UINT paddedH,
+                 const char* overlayStats = nullptr);
 
     // Also expose a pass-through path (no RIFE — raw BGRA texture).
     // Used when interpolation is disabled.
     void PresentBGRA(ID3D12Resource* bgraTex,
-                     UINT vidW, UINT vidH);
+                     UINT vidW, UINT vidH,
+                     const char* overlayStats = nullptr);
 
     void SetInterpolationEnabled(bool en) { interpolationEnabled_ = en; }
     bool IsInterpolationEnabled()  const  { return interpolationEnabled_; }
+
+    // Optional stats overlay — set once after construction.
+    // The Overlay object must outlive this presenter.
+    void SetOverlay(Overlay* overlay) { overlay_ = overlay; }
+
+    IDXGISwapChain3* SwapChain() const { return swapChain_.Get(); }
 
 private:
     void BuildPipeline();
@@ -34,7 +43,8 @@ private:
 
     const D3DContext& ctx_;
     UINT width_, height_;
-    bool interpolationEnabled_ = true;
+    bool     interpolationEnabled_ = true;
+    Overlay* overlay_              = nullptr;
 
     ComPtr<IDXGISwapChain3>   swapChain_;
     HANDLE                    waitObject_  = nullptr;

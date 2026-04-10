@@ -15,6 +15,7 @@
 #include "RifeInference.h"
 #include "SwapPresenter.h"
 #include "Telemetry.h"
+#include "Overlay.h"
 
 struct PresentFrame
 {
@@ -68,6 +69,7 @@ private:
     std::unique_ptr<TextureConverter> converter_;
     std::unique_ptr<RifeInference>    rife_;
     std::unique_ptr<SwapPresenter>    presenter_;
+    std::unique_ptr<Overlay>          overlay_;
     std::unique_ptr<Telemetry>        telemetry_;
 
     FrameQueue<CapturedFrame> captureQueue_{ 3 };  // shallow — drop old frames

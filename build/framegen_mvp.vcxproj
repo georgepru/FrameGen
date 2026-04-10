@@ -131,7 +131,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d2d1.lib;dwrite.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -191,7 +191,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d2d1.lib;dwrite.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -251,7 +251,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d2d1.lib;dwrite.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -311,7 +311,7 @@ exit /b %1
 if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
     <Link>
-      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\deps\onnxruntime\lib\onnxruntime.lib;d3d12.lib;d3d11.lib;d2d1.lib;dwrite.lib;d3dcompiler.lib;dxgi.lib;dxguid.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;evr.lib;strmiids.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;gdi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -554,6 +554,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\D3DContext.cpp" />
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\CaptureSource.cpp" />
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\FileSource.cpp" />
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\Overlay.cpp" />
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\TextureConverter.cpp" />
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\RifeInference.cpp" />
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\SwapPresenter.cpp" />

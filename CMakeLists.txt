@@ -42,6 +42,7 @@ set(SOURCES
     src/D3DContext.cpp
     src/CaptureSource.cpp
     src/FileSource.cpp
+    src/Overlay.cpp
     src/TextureConverter.cpp
     src/RifeInference.cpp
     src/SwapPresenter.cpp
@@ -85,6 +86,8 @@ target_link_libraries(framegen_mvp PRIVATE
     # DirectX
     d3d12.lib
     d3d11.lib
+    d2d1.lib
+    dwrite.lib
     d3dcompiler.lib
     dxgi.lib
     dxguid.lib

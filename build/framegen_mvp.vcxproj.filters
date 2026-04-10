@@ -13,6 +13,9 @@
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\FileSource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\Overlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\georg\Documents\SyncedStuff\Dev\framegen_mvp\src\TextureConverter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

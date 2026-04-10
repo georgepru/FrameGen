@@ -157,7 +157,8 @@ void SwapPresenter::BuildPipeline()
 // ---------------------------------------------------------------------------
 void SwapPresenter::Present(ID3D12Resource* nchwBuf,
                             UINT vidW, UINT vidH,
-                            UINT paddedW, UINT paddedH)
+                            UINT paddedW, UINT paddedH,
+                            const char* overlayStats)
 {
     // Wait on waitable to avoid queuing more than MAX_FRAME_LATENCY frames.
     WaitForSingleObject(waitObject_, INFINITE);
@@ -232,6 +233,10 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
     ID3D12CommandList* lists[] = { cmdList_.Get() };
     ctx_.cmdQueue12->ExecuteCommandLists(1, lists);
 
+    // Overlay: D2D text via D3D11On12 (runs after D3D12 work, before Present)
+    if (overlay_ && overlayStats && overlayStats[0])
+        overlay_->Draw(frameIdx, overlayStats);
+
     ++fenceValues_[frameIdx];
     HR_CHECK(ctx_.cmdQueue12->Signal(
         frameFences_[frameIdx].Get(), fenceValues_[frameIdx]));
@@ -250,7 +255,8 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
 // Used when interpolation is toggled off.
 // ---------------------------------------------------------------------------
 void SwapPresenter::PresentBGRA(ID3D12Resource* bgraTex,
-                                 UINT /*vidW*/, UINT /*vidH*/)
+                                 UINT /*vidW*/, UINT /*vidH*/,
+                                 const char* overlayStats)
 {
     WaitForSingleObject(waitObject_, INFINITE);
     UINT frameIdx = swapChain_->GetCurrentBackBufferIndex();
@@ -307,6 +313,9 @@ void SwapPresenter::PresentBGRA(ID3D12Resource* bgraTex,
     HR_CHECK(cmdList_->Close());
     ID3D12CommandList* lists[] = { cmdList_.Get() };
     ctx_.cmdQueue12->ExecuteCommandLists(1, lists);
+
+    if (overlay_ && overlayStats && overlayStats[0])
+        overlay_->Draw(frameIdx, overlayStats);
 
     ++fenceValues_[frameIdx];
     HR_CHECK(ctx_.cmdQueue12->Signal(

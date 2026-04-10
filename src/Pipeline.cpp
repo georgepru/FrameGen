@@ -1,6 +1,7 @@
 // Pipeline.cpp
 #include "Pipeline.h"
 #include "FileSource.h"
+#include "Overlay.h"
 #include <chrono>
 #include <stdexcept>
 #include <cstdio>
@@ -48,6 +49,22 @@ Pipeline::Pipeline(const Config& cfg)
     converter_ = std::make_unique<TextureConverter>(*ctx_);
     rife_      = std::make_unique<RifeInference>(cfg_.onnxPath, *ctx_, pw, ph);
     presenter_ = std::make_unique<SwapPresenter>(hwnd_, *ctx_, pw, ph);
+
+    // Overlay (D2D text on top of swap chain back buffers)
+    try
+    {
+        overlay_ = std::make_unique<Overlay>(
+            *ctx_, presenter_->SwapChain(),
+            SwapPresenter::BUFFER_COUNT, pw, ph);
+        presenter_->SetOverlay(overlay_.get());
+        printf("[pipeline] overlay ready\n"); fflush(stdout);
+    }
+    catch (const std::exception& ex)
+    {
+        printf("[pipeline] overlay init failed (%s) -- continuing without\n",
+               ex.what()); fflush(stdout);
+        overlay_ = nullptr;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -257,8 +274,9 @@ void Pipeline::PresentThread()
 
             if (pf.nchwBuf)
             {
+                std::string stats = telemetry_->StatsLine();
                 presenter_->Present(pf.nchwBuf, pf.vidW, pf.vidH,
-                                    pf.paddedW, pf.paddedH);
+                                    pf.paddedW, pf.paddedH, stats.c_str());
             }
             else
             {
