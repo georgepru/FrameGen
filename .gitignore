@@ -1,3 +1,7 @@
 build/
 deps/onnxruntime/
 *.user
+*.pkl
+*.onnx
+flownet_*.pkl
+__pycache__/
