@@ -73,7 +73,7 @@ private:
     std::unique_ptr<Telemetry>        telemetry_;
 
     FrameQueue<CapturedFrame> captureQueue_{ 3 };  // shallow — drop old frames
-    FrameQueue<PresentFrame>  presentQueue_{ 2 };
+    FrameQueue<PresentFrame>  presentQueue_{ 4 };  // 2 frames per RIFE call → need depth ≥ 4
 
     std::thread captureThread_;
     std::thread rifeThread_;

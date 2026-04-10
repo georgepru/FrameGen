@@ -93,6 +93,7 @@ static HWND CreateFullscreenWindow(HINSTANCE hInst)
 // ---------------------------------------------------------------------------
 int main(int, char**)
 {
+    SetConsoleOutputCP(CP_UTF8);  // Prevent garbled UTF-8 box chars in Windows console
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
     HINSTANCE hInst = GetModuleHandleW(nullptr);
@@ -233,7 +234,7 @@ int main(int, char**)
         pipeline.Stop();
 
         // Print final stats
-        printf("\n── Final telemetry ──\n%s\n",
+        printf("\n--- Final telemetry ---\n%s\n",
                pipeline.GetTelemetry().StatsLine().c_str());
         wprintf(L"Log written to: %ls\n", logPath.c_str());
         fflush(stdout);

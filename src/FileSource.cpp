@@ -5,6 +5,8 @@
 #include <mfreadwrite.h>
 #include <propvarutil.h>
 #include <cstdio>
+#include <thread>
+#include <chrono>
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "mfuuid.lib")
@@ -134,10 +136,17 @@ void FileSource::ThreadProc()
 
     try
     {
+    // Wall-clock anchor for frame pacing: we sleep_until(anchor + timestamp)
+    // so frames are delivered at the video's native rate.
+    // Reset on loop (timestamps go back to 0).
+    using namespace std::chrono;
+    steady_clock::time_point anchor;  // set on first frame of each loop
+    bool anchorSet = false;
+
     while (running_)
     {
         DWORD    flags     = 0;
-        LONGLONG timestamp = 0;
+        LONGLONG timestamp = 0;   // 100-ns units
         ComPtr<IMFSample> sample;
 
         HRESULT hr = reader_->ReadSample(
@@ -155,6 +164,7 @@ void FileSource::ThreadProc()
             var.hVal.QuadPart = 0;  // seek to position 0 (100-ns units)
             reader_->SetCurrentPosition(GUID_NULL, var);
             PropVariantClear(&var);
+            anchorSet = false;  // reset pacing anchor for the new loop
             printf("[filesource] looping\n");
             fflush(stdout);
             continue;
@@ -237,11 +247,23 @@ void FileSource::ThreadProc()
         QueryPerformanceCounter(&qpc);
 
         CapturedFrame frame;
-        frame.texBGRA     = gpuTex;   // ComPtr keeps texture alive through pipeline
-        frame.tex11       = nullptr;  // no D3D11On12 — Pipeline checks for null
+        frame.texBGRA     = gpuTex;
+        frame.tex11       = nullptr;
         frame.width       = videoWidth_;
         frame.height      = videoHeight_;
         frame.captureTime = qpc.QuadPart;
+
+        // Pace delivery to the video's native frame rate using the MF timestamp.
+        // anchor marks wall-clock time corresponding to timestamp == 0.
+        // We sleep_until(anchor + timestamp_duration) before each push so that
+        // the pipeline sees frames arriving at the real inter-frame interval.
+        if (!anchorSet)
+        {
+            anchor    = steady_clock::now();
+            anchorSet = true;
+        }
+        auto targetTime = anchor + nanoseconds(timestamp * 100LL);
+        std::this_thread::sleep_until(targetTime);
 
         queue_.Push(frame);
     }

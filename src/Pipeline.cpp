@@ -203,22 +203,38 @@ void Pipeline::RifeThread()
             printf("[rife] inference done\n"); fflush(stdout);
             telemetry_->OnRifeEnd();
 
-            // ── Push interpolated frame to presenter ────────────────────────
-            PresentFrame pf;
-            pf.nchwBuf = rife_->OutBuf();
-            pf.vidW    = frame.width;
-            pf.vidH    = frame.height;
-            pf.paddedW = pw;
-            pf.paddedH = ph;
-
-            if (!presentQueue_.Push(pf))
+            // ── Push interpolated (mid) frame to presenter ───────────────────
             {
-                telemetry_->OnDroppedFrame();
+                PresentFrame pf;
+                pf.nchwBuf = rife_->OutBuf();
+                pf.vidW    = frame.width;
+                pf.vidH    = frame.height;
+                pf.paddedW = pw;
+                pf.paddedH = ph;
+                if (!presentQueue_.Push(pf))
+                    telemetry_->OnDroppedFrame();
             }
 
             // Shift: InBuf1 → InBuf0 for next pair (copy on GPU).
+            // After this, InBuf0 holds the current original frame.
             converter_->CopyBuffer(rife_->InBuf1(), rife_->InBuf0(), pw, ph, fence);
             fence.Wait();
+
+            // ── Push original (current) frame to presenter ───────────────────
+            // InBuf0 is stable until the next iteration's CopyBuffer overwrites it
+            // (~65 ms away at 30 fps input).  PresentThread's WaitForSingleObject
+            // at 60 Hz takes ≤ 17 ms, so its cmdQueue12 draw is always submitted
+            // before the overwrite, keeping the queue safely ordered.
+            {
+                PresentFrame pf;
+                pf.nchwBuf = rife_->InBuf0();
+                pf.vidW    = frame.width;
+                pf.vidH    = frame.height;
+                pf.paddedW = pw;
+                pf.paddedH = ph;
+                if (!presentQueue_.Push(pf))
+                    telemetry_->OnDroppedFrame();
+            }
 
             // Return current frame's D3D11 resource.
             if (frame.tex11)
