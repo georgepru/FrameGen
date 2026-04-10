@@ -7,7 +7,7 @@
 //
 // Cbuffer layout must match the CB struct in SwapPresenter.cpp.
 
-Buffer<float> nchwBuf : register(t0);
+Buffer<min16float> nchwBuf : register(t0);
 
 cbuffer NCHWPresentCB : register(b0)
 {

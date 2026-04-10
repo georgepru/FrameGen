@@ -181,9 +181,9 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
     CB cb{ vidW, vidH, paddedW, 1.0f };
     memcpy(cbMapped_, &cb, sizeof(cb));
 
-    // SRV: NCHW buffer (Buffer<float> in HLSL)
+    // SRV: NCHW buffer (Buffer<min16float> in HLSL)
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format                    = DXGI_FORMAT_R32_FLOAT;
+    srvDesc.Format                    = DXGI_FORMAT_R16_FLOAT;
     srvDesc.ViewDimension             = D3D12_SRV_DIMENSION_BUFFER;
     srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Buffer.NumElements        = 3 * paddedW * paddedH;
@@ -241,13 +241,15 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
     HR_CHECK(ctx_.cmdQueue12->Signal(
         frameFences_[frameIdx].Get(), fenceValues_[frameIdx]));
 
-    // Present immediately (tearing allowed = minimises latency).
-    // Use SyncInterval=0 with ALLOW_TEARING for uncapped framerate.
-    // Fall back to plain Present if the call fails (e.g. adapter doesn't
-    // support tearing on this output config).
-    HRESULT hr = swapChain_->Present(0, DXGI_PRESENT_ALLOW_TEARING);
-    if (FAILED(hr))
-        HR_CHECK(swapChain_->Present(1, 0));
+    // SyncInterval=1: each Present() is held until the next vsync.
+    // This is required for correct 2x frame output: with tearing (SyncInterval=0)
+    // the DXGI frame-latency waitable fires almost immediately after Present(),
+    // allowing OutBuf and InBuf0 to be submitted back-to-back.  FLIP_DISCARD
+    // then silently throws away OutBuf before it is ever shown on screen,
+    // making the output look like 30 fps despite 60 presents/sec in telemetry.
+    // SyncInterval=1 gates each Present() to a vsync boundary (~16.7 ms at
+    // 60 Hz), so both frames in the pair are displayed for exactly one refresh.
+    HR_CHECK(swapChain_->Present(1, 0));
 }
 
 // ---------------------------------------------------------------------------

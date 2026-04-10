@@ -118,11 +118,10 @@ void TextureConverter::BGRAtoNCHW(ID3D12Resource* bgraIn,
 
     // UAV: NCHW buffer (descriptor 1)
     {
-        UINT64 bufSizeBytes = (UINT64)paddedW * paddedH * 3 * sizeof(float);
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-        uavDesc.Format               = DXGI_FORMAT_R32_FLOAT;
+        uavDesc.Format               = DXGI_FORMAT_R16_FLOAT;
         uavDesc.ViewDimension        = D3D12_UAV_DIMENSION_BUFFER;
-        uavDesc.Buffer.NumElements   = (UINT)(bufSizeBytes / sizeof(float));
+        uavDesc.Buffer.NumElements   = (UINT)(paddedW * paddedH * 3);
         D3D12_CPU_DESCRIPTOR_HANDLE uavHandle = cpuBase;
         uavHandle.ptr += srvDescSize_;
         ctx_.device12->CreateUnorderedAccessView(nchwOut, nullptr, &uavDesc, uavHandle);
@@ -181,7 +180,7 @@ void TextureConverter::CopyBuffer(ID3D12Resource* src, ID3D12Resource* dst,
                                    UINT paddedW, UINT paddedH,
                                    D3DContext::FenceSync& fence)
 {
-    UINT64 bytes = (UINT64)paddedW * paddedH * 3 * sizeof(float);
+    UINT64 bytes = (UINT64)paddedW * paddedH * 3 * sizeof(uint16_t);
 
     HR_CHECK(cmdAlloc_->Reset());
     HR_CHECK(cmdList_->Reset(cmdAlloc_.Get(), pso_.Get()));

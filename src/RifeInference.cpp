@@ -70,7 +70,7 @@ void RifeInference::AllocateDmlTensors()
         static_cast<int64_t>(ph_),
         static_cast<int64_t>(pw_)
     };
-    const size_t bufBytes = static_cast<size_t>(pw_) * ph_ * 3 * sizeof(float);
+    const size_t bufBytes = static_cast<size_t>(pw_) * ph_ * 3 * sizeof(uint16_t);
 
     auto makeBuffer = [&](ComPtr<ID3D12Resource>& res)
     {
@@ -108,15 +108,15 @@ void RifeInference::AllocateDmlTensors()
     ORT_CHECK(Ort::GetApi().CreateTensorWithDataAsOrtValue(
         dmlMem.GetConst(), dmlAlloc0_, bufBytes,
         shape.data(), shape.size(),
-        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &v0));
+        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16, &v0));
     ORT_CHECK(Ort::GetApi().CreateTensorWithDataAsOrtValue(
         dmlMem.GetConst(), dmlAlloc1_, bufBytes,
         shape.data(), shape.size(),
-        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &v1));
+        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16, &v1));
     ORT_CHECK(Ort::GetApi().CreateTensorWithDataAsOrtValue(
         dmlMem.GetConst(), dmlAllocOut_, bufBytes,
         shape.data(), shape.size(),
-        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &vO));
+        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16, &vO));
 
     inVal0_ = Ort::Value{ v0 };
     inVal1_ = Ort::Value{ v1 };

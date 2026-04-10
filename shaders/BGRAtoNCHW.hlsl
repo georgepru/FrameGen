@@ -1,5 +1,5 @@
 // BGRAtoNCHW.hlsl
-// Compute shader: converts a B8G8R8A8_UNORM texture to an NCHW float32 buffer.
+// Compute shader: converts a B8G8R8A8_UNORM texture to an NCHW float16 buffer.
 //
 // Output buffer layout (stride = paddedWidth):
 //   [0 .. H*stride-1]             R plane
@@ -9,7 +9,7 @@
 // Note: HLSL sample of B8G8R8A8 auto-swizzles so .r/.g/.b give R,G,B.
 
 Texture2D<float4> inputTex  : register(t0);
-RWBuffer<float>   outputBuf : register(u0);
+RWBuffer<min16float> outputBuf : register(u0);
 
 cbuffer Constants : register(b0)
 {
