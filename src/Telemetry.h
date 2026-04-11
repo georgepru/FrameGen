@@ -58,6 +58,7 @@ private:
     // Rolling windows for FPS calculation
     std::vector<TP> captureTimes_;
     std::vector<TP> presentTimes_;
+    std::vector<TP> longGapTimes_;  // capture gaps >40ms in the last 60s
 
     std::atomic<uint64_t> dropped_{ 0 };
     std::atomic<uint64_t> captureCount_{ 0 };
@@ -65,4 +66,15 @@ private:
 
     // Last completed inference duration (for fast read in StatsLine)
     std::atomic<double> lastInferMs_{ 0.0 };
+    std::atomic<uint64_t> longGapPerMin_{ 0 };
+
+    // Present-side metrics set by Pipeline after each Present() call
+    std::atomic<double> lastWaitMs_{ 0.0 };   // time spent in waitable wait
+    std::atomic<double> lastPGapMs_{ 0.0 };   // time between consecutive presents
+
+public:
+    void   SetWaitMs(double ms)  { lastWaitMs_.store(ms); }
+    double LastWaitMs()    const { return lastWaitMs_.load(); }
+    double LastPGapMs()    const { return lastPGapMs_.load(); }
+    uint64_t LongGapPerMin() const { return longGapPerMin_.load(); }
 };

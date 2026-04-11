@@ -109,13 +109,12 @@ void Overlay::Draw(UINT frameIndex, const char* stats)
     d2dCtx_->BeginDraw();
     d2dCtx_->SetTransform(D2D1::Matrix3x2F::Identity());
 
-    // Background box
+    // Full-width bar across the top
     const float pad  = 8.0f;
-    const float boxW = 260.0f;
-    const float boxH = 110.0f;
-    D2D1_RECT_F bg = D2D1::RectF(10.0f, 10.0f, 10.0f + boxW, 10.0f + boxH);
-    d2dCtx_->FillRoundedRectangle(
-        D2D1::RoundedRect(bg, 6.0f, 6.0f), bgBrush_.Get());
+    const float boxW = float(width_);
+    const float boxH = 36.0f;
+    D2D1_RECT_F bg = D2D1::RectF(0.0f, 0.0f, boxW, boxH);
+    d2dCtx_->FillRectangle(bg, bgBrush_.Get());
 
     // Text
     D2D1_RECT_F textRect = D2D1::RectF(

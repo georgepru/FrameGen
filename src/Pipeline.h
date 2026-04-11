@@ -25,6 +25,7 @@ struct PresentFrame
     UINT            vidH     = 0;
     UINT            paddedW  = 0;
     UINT            paddedH  = 0;
+    bool            needsDwmFlushAfter = false; // true for interpolated frame: wait for DWM refresh before next present
 };
 
 class Pipeline
@@ -54,6 +55,9 @@ public:
     void ToggleInterpolation() { interpolation_.store(!interpolation_.load()); }
     void SetInterpolation(bool en) { interpolation_.store(en); }
     bool IsInterpolating()   const { return interpolation_.load(); }
+
+    void ToggleOverlay() { showOverlay_.store(!showOverlay_.load()); }
+    bool IsOverlayVisible() const { return showOverlay_.load(); }
 
     bool IsRunning()    const { return running_.load(); }
     bool ThreadFailed() const { return threadFailed_.load(); }
@@ -93,6 +97,7 @@ private:
 
     std::atomic<bool>   running_{ false };
     std::atomic<bool>   interpolation_{ true };
+    std::atomic<bool>   showOverlay_{ true };
     std::atomic<bool>   threadFailed_{ false };
     std::string         threadError_;
 };

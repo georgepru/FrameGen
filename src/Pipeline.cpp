@@ -413,10 +413,8 @@ void Pipeline::RifeThread()
             else
             {
                 // ── 2x inference (default) ───────────────────────────────────
-                printf("[rife] running inference\n"); fflush(stdout);
                 telemetry_->OnRifeStart();
                 rife_->Run();
-                printf("[rife] inference done\n"); fflush(stdout);
                 telemetry_->OnRifeEnd();
 
                 // Push interpolated mid frame.
@@ -428,6 +426,7 @@ void Pipeline::RifeThread()
                     pf.vidH    = frame.height;
                     pf.paddedW = pw;
                     pf.paddedH = ph;
+                    pf.needsDwmFlushAfter = true; // wait for DWM refresh before presenting original
                     if (!presentQueue_.Push(pf))
                         telemetry_->OnDroppedFrame();
                 }
@@ -504,10 +503,26 @@ void Pipeline::PresentThread()
 
             if (pf.nchwBuf)
             {
-                std::string stats = telemetry_->StatsLine();
+                std::string stats = showOverlay_ ? telemetry_->StatsLine() : std::string{};
                 presenter_->Present(pf.nchwBuf, pf.vidW, pf.vidH,
                                     pf.paddedW, pf.paddedH, stats.c_str(),
                                     pf.bgraRef);
+
+                // For interpolated frames: spin-wait until ~one vsync period has
+                // elapsed since this present before allowing the original frame
+                // present. This keeps both frames in separate vsync intervals
+                // without touching any GPU/DWM API (which TDRs on RTX 5080).
+                if (pf.needsDwmFlushAfter)
+                {
+                    using Clock = std::chrono::steady_clock;
+                    using Ms    = std::chrono::duration<double, std::milli>;
+                    // Budget: 16.67ms at 60Hz. Sleep most of it, busy-spin the tail.
+                    constexpr double kVsyncMs  = 1000.0 / 60.0;
+                    constexpr double kSleepMs  = kVsyncMs - 2.0; // leave 2ms tail for spin
+                    auto deadline = Clock::now() + Ms(kVsyncMs);
+                    std::this_thread::sleep_for(Ms(kSleepMs));
+                    while (Clock::now() < deadline) { /* spin */ }
+                }
             }
             else
             {
@@ -515,6 +530,7 @@ void Pipeline::PresentThread()
                 // In a future iteration we could blit the BGRA directly here.
             }
 
+            telemetry_->SetWaitMs(presenter_->LastWaitMs());
             telemetry_->OnPresent();
         }
     }

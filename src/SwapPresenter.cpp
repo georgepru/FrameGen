@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <cstdio>
+#include <chrono>
 
 #include "NCHWPresentVS.h"
 #include "NCHWPresentPS.h"
@@ -32,9 +33,8 @@ SwapPresenter::SwapPresenter(HWND hwnd, const D3DContext& ctx,
     scDesc.SampleDesc  = { 1, 0 };
     scDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     scDesc.BufferCount = BUFFER_COUNT;
-    scDesc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    scDesc.Flags       = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT
-                       | DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    scDesc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    scDesc.Flags       = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 
     ComPtr<IDXGISwapChain1> sc1;
     HR_CHECK(factory->CreateSwapChainForHwnd(queue, hwnd, &scDesc,
@@ -169,7 +169,13 @@ void SwapPresenter::Present(ID3D12Resource* nchwBuf,
                             ID3D12Resource* bgraRef)
 {
     // Wait on waitable to avoid queuing more than MAX_FRAME_LATENCY frames.
-    WaitForSingleObject(waitObject_, INFINITE);
+    {
+        using Clock = std::chrono::steady_clock;
+        auto t0 = Clock::now();
+        WaitForSingleObject(waitObject_, INFINITE);
+        double ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
+        lastWaitMs_.store(ms);
+    }
 
     UINT frameIdx = swapChain_->GetCurrentBackBufferIndex();
 
@@ -389,7 +395,7 @@ void SwapPresenter::PresentBGRA(ID3D12Resource* bgraTex,
     HR_CHECK(ctx_.cmdQueue12->Signal(
         frameFences_[frameIdx].Get(), fenceValues_[frameIdx]));
 
-    HR_CHECK(swapChain_->Present(0, DXGI_PRESENT_ALLOW_TEARING));
+    HR_CHECK(swapChain_->Present(1, 0));  // vsync
 }
 
 // ---------------------------------------------------------------------------

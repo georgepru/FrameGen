@@ -14,6 +14,7 @@ Telemetry::Telemetry(const std::wstring& logPath)
     records_.reserve(8192);
     captureTimes_.reserve(256);
     presentTimes_.reserve(256);
+    longGapTimes_.reserve(256);
 }
 
 // ---------------------------------------------------------------------------
@@ -30,8 +31,21 @@ void Telemetry::OnCaptureFrame()
         std::lock_guard lock(mu_);
         current_ = {};
         current_.captureArrival = now;
+
+        if (!captureTimes_.empty())
+        {
+            double gapMs = duration<double, std::milli>(now - captureTimes_.back()).count();
+            if (gapMs > 40.0)
+                longGapTimes_.push_back(now);
+        }
+
+        auto cutoff = now - seconds(60);
+        while (!longGapTimes_.empty() && longGapTimes_.front() < cutoff)
+            longGapTimes_.erase(longGapTimes_.begin());
+
         captureTimes_.push_back(now);
         if (captureTimes_.size() > 120) captureTimes_.erase(captureTimes_.begin());
+        longGapPerMin_.store(static_cast<uint64_t>(longGapTimes_.size()));
     }
     ++captureCount_;
 }
@@ -60,6 +74,11 @@ void Telemetry::OnPresent()
     {
         std::lock_guard lock(mu_);
         current_.presented = now;
+        if (!presentTimes_.empty())
+        {
+            double gapMs = duration<double, std::milli>(now - presentTimes_.back()).count();
+            lastPGapMs_.store(gapMs);
+        }
         presentTimes_.push_back(now);
         if (presentTimes_.size() > 120) presentTimes_.erase(presentTimes_.begin());
         records_.push_back(current_);
@@ -133,12 +152,25 @@ double Telemetry::P95InferMs() const
 
 std::string Telemetry::StatsLine() const
 {
-    char buf[256];
+    double inFps = 0.0, outFps = 0.0, lastIntervalMs = 0.0;
+    {
+        std::lock_guard lock(mu_);
+        inFps  = FPSFromTimes(captureTimes_);
+        outFps = FPSFromTimes(presentTimes_);
+        if (captureTimes_.size() >= 2)
+            lastIntervalMs = duration<double, std::milli>(
+                captureTimes_.back() - captureTimes_[captureTimes_.size() - 2]).count();
+    }
+    char buf[320];
     snprintf(buf, sizeof(buf),
-             "In: %.1f fps  Out: %.1f fps  RIFE: %.1f ms  Dropped: %llu",
-             InputFPS(), OutputFPS(),
+             "In: %4.1f fps  Out: %4.1f fps  Drop: %3llu  RIFE: %4.1f ms  InGap: %3.0f ms  PGap: %4.1f ms  Wait: %4.1f ms  Gap40+/m: %3llu",
+             inFps, outFps,
+             (unsigned long long)dropped_.load(),
              lastInferMs_.load(),
-             (unsigned long long)dropped_.load());
+             lastIntervalMs,
+             lastPGapMs_.load(),
+             lastWaitMs_.load(),
+             (unsigned long long)longGapPerMin_.load());
     return buf;
 }
 

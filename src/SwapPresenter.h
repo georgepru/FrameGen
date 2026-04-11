@@ -5,6 +5,7 @@
 #include "Common.h"
 #include "D3DContext.h"
 #include "Overlay.h"
+#include <atomic>
 
 class SwapPresenter
 {
@@ -33,6 +34,10 @@ public:
 
     void SetInterpolationEnabled(bool en) { interpolationEnabled_ = en; }
     bool IsInterpolationEnabled()  const  { return interpolationEnabled_; }
+
+    // Time spent waiting on the frame-latency waitable object in the last Present().
+    // Near 0ms = pipeline is running late; ~16ms = comfortable headroom.
+    double LastWaitMs() const { return lastWaitMs_.load(); }
 
     // Optional stats overlay — set once after construction.
     // The Overlay object must outlive this presenter.
@@ -80,4 +85,6 @@ private:
     // Constant buffer (Width, Height, Stride, Gamma)
     ComPtr<ID3D12Resource>            cbBuf_;
     void*                             cbMapped_ = nullptr;
+
+    std::atomic<double>               lastWaitMs_{ 0.0 };
 };

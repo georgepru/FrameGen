@@ -3,6 +3,7 @@
 // Controls:
 //   Q / Esc   – quit
 //   I         – toggle RIFE interpolation on/off
+//   M         – toggle metrics overlay on/off
 //   D         – print device list to stdout
 //   1-9       – switch to capture device N-1 (requires restart)
 //
@@ -52,6 +53,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             g_pipeline->ToggleInterpolation();
             printf("[main] interpolation: %s\n",
                    g_pipeline->IsInterpolating() ? "ON" : "OFF");
+            fflush(stdout);
+            break;
+        case 'M':
+            g_pipeline->ToggleOverlay();
+            printf("[main] overlay: %s\n",
+                   g_pipeline->IsOverlayVisible() ? "ON" : "OFF");
             fflush(stdout);
             break;
         case 'D':
