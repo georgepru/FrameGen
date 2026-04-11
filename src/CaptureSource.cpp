@@ -270,6 +270,10 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
                                      DWORD streamFlags, LONGLONG /*timestamp*/,
                                      IMFSample* pSample)
 {
+    // Catch all C++ exceptions — this runs on an MF thread-pool thread.
+    // An unhandled exception here calls std::terminate() with no log output.
+    try {
+
     if (stop_) return S_OK;
 
     if (FAILED(hr))
@@ -416,8 +420,21 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
 
     RequestNextSample();
     return S_OK;
-}
 
+    } // try
+    catch (const std::exception& e)
+    {
+        printf("[capture] FATAL exception in OnReadSample: %s\n", e.what()); fflush(stdout);
+        queue_.Interrupt();
+        return E_FAIL;
+    }
+    catch (...)
+    {
+        printf("[capture] FATAL unknown exception in OnReadSample\n"); fflush(stdout);
+        queue_.Interrupt();
+        return E_FAIL;
+    }
+}
 // ---------------------------------------------------------------------------
 HRESULT CaptureSource::OnFlush(DWORD /*streamIndex*/)
 {
