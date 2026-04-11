@@ -85,6 +85,7 @@ private:
     ComPtr<ID3D12Resource>    scratch0_;           // 4x mode: holds M = interp(A,B)
     ComPtr<ID3D12Resource>    scratch1_;           // 4x mode: holds B while InBuf1 is overwritten
     ComPtr<ID3D12Resource>    scratch2_;           // 4x mode: stable copy of Q1 so OutBuf is free for Pass 3
+    ComPtr<ID3D12Resource>    scratch3_;           // 4x mode: stable copy of Q3 so OutBuf is free for next pair's Pass 1
 
     std::thread captureThread_;
     std::thread rifeThread_;
