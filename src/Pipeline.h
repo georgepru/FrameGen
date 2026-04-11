@@ -40,6 +40,7 @@ public:
         bool         debugD3D   = false;
         bool         compareMode    = false; // --compare: show interpolated left, original right
         bool         halfRateInput  = false; // --half-rate: consume every other input frame (30fps game in 60fps container)
+        bool         fourXMode      = false; // --4x: 3-pass recursive interp 30→120fps (requires 120Hz display)
         UINT         screenW    = 0;      // full screen dimensions for compare mode swapchain
         UINT         screenH    = 0;
     };
@@ -78,9 +79,11 @@ private:
     std::unique_ptr<Telemetry>        telemetry_;
 
     FrameQueue<CapturedFrame> captureQueue_{ 3 };  // shallow — drop old frames
-    FrameQueue<PresentFrame>  presentQueue_{ 4 };  // 2 frames per RIFE call → need depth ≥ 4
+    FrameQueue<PresentFrame>  presentQueue_{ 8 };  // 4x mode pushes 4 frames per pair
 
     ComPtr<ID3D12Resource>    refTex_;              // D3D12 BGRA copy used as compare-mode right panel
+    ComPtr<ID3D12Resource>    scratch0_;            // 4x mode: holds M = interp(A,B)
+    ComPtr<ID3D12Resource>    scratch1_;            // 4x mode: holds B while InBuf1 is overwritten
 
     std::thread captureThread_;
     std::thread rifeThread_;

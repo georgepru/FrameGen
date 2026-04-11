@@ -18,6 +18,9 @@
 // Usage (30fps game in 60fps container, e.g. Xbox One S):
 //   framegen_mvp.exe --half-rate [rife.onnx] [deviceIndex]
 //
+// Usage (30fps game → 120fps, requires 120Hz display):
+//   framegen_mvp.exe --half-rate --4x [rife.onnx] [deviceIndex]
+//
 // Defaults: rife.onnx in the exe directory, device 0.
 #include "Common.h"
 #include "Pipeline.h"
@@ -113,6 +116,7 @@ int main(int, char**)
     std::wstring filePath;   // set via --file <path>; empty = use capture card
     bool         compareMode   = false; // --compare: side-by-side comparison window
     bool         halfRateInput = false; // --half-rate: drop every other input frame
+    bool         fourXMode    = false; // --4x: 3-pass 30→120fps (requires 120Hz display)
 
     for (int i = 1; i < argc; ++i)
     {
@@ -128,6 +132,10 @@ int main(int, char**)
         else if (arg == L"--half-rate" || arg == L"-h")
         {
             halfRateInput = true;
+        }
+        else if (arg == L"--4x")
+        {
+            fourXMode = true;
         }
         else if (arg.size() > 5 &&
                  (arg.substr(arg.size()-4) == L".mp4"  ||
@@ -222,6 +230,7 @@ int main(int, char**)
     cfg.debugD3D     = false;
     cfg.compareMode  = compareMode;
     cfg.halfRateInput = halfRateInput;
+    cfg.fourXMode    = fourXMode;
     cfg.screenW      = (UINT)GetSystemMetrics(SM_CXSCREEN);
     cfg.screenH      = (UINT)GetSystemMetrics(SM_CYSCREEN);
 

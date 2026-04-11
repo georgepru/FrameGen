@@ -94,6 +94,40 @@ Pipeline::Pipeline(const Config& cfg)
             overlay_ = nullptr;
         }
     }
+
+    // Allocate scratch buffers for 4x recursive interpolation.
+    if (cfg_.fourXMode)
+    {
+        const size_t bufBytes =
+            static_cast<size_t>(pw) * ph * 3 * sizeof(uint16_t);
+
+        auto makeScratch = [&](ComPtr<ID3D12Resource>& res)
+        {
+            D3D12_HEAP_PROPERTIES hp = {};
+            hp.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+            D3D12_RESOURCE_DESC rd = {};
+            rd.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER;
+            rd.Width            = bufBytes;
+            rd.Height           = 1;
+            rd.DepthOrArraySize = 1;
+            rd.MipLevels        = 1;
+            rd.SampleDesc.Count = 1;
+            rd.Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+            rd.Flags            = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+            HR_CHECK(ctx_->device12->CreateCommittedResource(
+                &hp, D3D12_HEAP_FLAG_NONE, &rd,
+                D3D12_RESOURCE_STATE_COMMON, nullptr,
+                IID_PPV_ARGS(&res)));
+        };
+
+        makeScratch(scratch0_);
+        makeScratch(scratch1_);
+        printf("[pipeline] 4x mode: scratch buffers allocated (%.1f MB each)\n",
+               bufBytes / (1024.0 * 1024.0));
+        fflush(stdout);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -275,46 +309,129 @@ void Pipeline::RifeThread()
                 prevFrame->tex11 = nullptr;
             }
 
-            // ── RIFE inference ──────────────────────────────────────────────
-            printf("[rife] running inference\n"); fflush(stdout);
-            telemetry_->OnRifeStart();
-            rife_->Run();
-            printf("[rife] inference done\n"); fflush(stdout);
-            telemetry_->OnRifeEnd();
-
-            // ── Push interpolated (mid) frame to presenter ───────────────────
+            if (cfg_.fourXMode)
             {
-                PresentFrame pf;
-                pf.nchwBuf = rife_->OutBuf();
-                pf.bgraRef = refTex_.Get();  // null in normal mode, BGRA copy in compare mode
-                pf.vidW    = frame.width;
-                pf.vidH    = frame.height;
-                pf.paddedW = pw;
-                pf.paddedH = ph;
-                if (!presentQueue_.Push(pf))
-                    telemetry_->OnDroppedFrame();
+                // ── 4x recursive interpolation: A,B → Q1,M,Q3,B ────────────
+                // Pass 1: Run(A, B) → M
+                // Pass 2: Run(A, M) → Q1   (t=0.25)
+                // Pass 3: Run(M, B) → Q3   (t=0.75)
+                // Output order pushed to present: Q1, M, Q3, B
+                //
+                // scratch0_ = M = interp(A,B)
+                // scratch1_ = B (saved before InBuf1 is overwritten)
+                //
+                // Safety: scratch0/1 are only used as CopyBuffer SOURCE alongside
+                // PresentThread GPU reads — concurrent READs are safe.
+
+                // Save B before InBuf1 gets clobbered.
+                converter_->CopyBuffer(rife_->InBuf1(), scratch1_.Get(), pw, ph, fence);
+                fence.Wait();  // scratch1 = B
+
+                // Pass 1: Run(A, B) → M
+                telemetry_->OnRifeStart();
+                rife_->Run();
+                telemetry_->OnRifeEnd();
+                converter_->CopyBuffer(rife_->OutBuf(), scratch0_.Get(), pw, ph, fence);
+                fence.Wait();  // scratch0 = M
+
+                // Pass 2: Run(A, M) → Q1
+                converter_->CopyBuffer(scratch0_.Get(), rife_->InBuf1(), pw, ph, fence);
+                fence.Wait();  // InBuf1 = M
+                telemetry_->OnRifeStart();
+                rife_->Run();
+                telemetry_->OnRifeEnd();
+
+                // Push Q1 (OutBuf).
+                {
+                    PresentFrame pf;
+                    pf.nchwBuf = rife_->OutBuf();
+                    pf.bgraRef = refTex_.Get();
+                    pf.vidW = frame.width; pf.vidH = frame.height;
+                    pf.paddedW = pw;       pf.paddedH = ph;
+                    if (!presentQueue_.Push(pf)) telemetry_->OnDroppedFrame();
+                }
+
+                // Push M (scratch0). CopyBuffer below also READs scratch0 — safe.
+                {
+                    PresentFrame pf;
+                    pf.nchwBuf = scratch0_.Get();
+                    pf.bgraRef = refTex_.Get();
+                    pf.vidW = frame.width; pf.vidH = frame.height;
+                    pf.paddedW = pw;       pf.paddedH = ph;
+                    if (!presentQueue_.Push(pf)) telemetry_->OnDroppedFrame();
+                }
+
+                // Pass 3: Run(M, B) → Q3
+                converter_->CopyBuffer(scratch0_.Get(), rife_->InBuf0(), pw, ph, fence);
+                fence.Wait();  // InBuf0 = M
+                converter_->CopyBuffer(scratch1_.Get(), rife_->InBuf1(), pw, ph, fence);
+                fence.Wait();  // InBuf1 = B
+                telemetry_->OnRifeStart();
+                rife_->Run();
+                telemetry_->OnRifeEnd();
+
+                // Push Q3 (OutBuf).
+                {
+                    PresentFrame pf;
+                    pf.nchwBuf = rife_->OutBuf();
+                    pf.bgraRef = refTex_.Get();
+                    pf.vidW = frame.width; pf.vidH = frame.height;
+                    pf.paddedW = pw;       pf.paddedH = ph;
+                    if (!presentQueue_.Push(pf)) telemetry_->OnDroppedFrame();
+                }
+
+                // Shift B → InBuf0 for next cycle. Also READs scratch1 — safe.
+                converter_->CopyBuffer(scratch1_.Get(), rife_->InBuf0(), pw, ph, fence);
+                fence.Wait();  // InBuf0 = B
+
+                // Push B (InBuf0).
+                {
+                    PresentFrame pf;
+                    pf.nchwBuf = rife_->InBuf0();
+                    pf.bgraRef = refTex_.Get();
+                    pf.vidW = frame.width; pf.vidH = frame.height;
+                    pf.paddedW = pw;       pf.paddedH = ph;
+                    if (!presentQueue_.Push(pf)) telemetry_->OnDroppedFrame();
+                }
             }
-
-            // Shift: InBuf1 → InBuf0 for next pair (copy on GPU).
-            // After this, InBuf0 holds the current original frame.
-            converter_->CopyBuffer(rife_->InBuf1(), rife_->InBuf0(), pw, ph, fence);
-            fence.Wait();
-
-            // ── Push original (current) frame to presenter ───────────────────
-            // InBuf0 is stable until the next iteration's CopyBuffer overwrites it
-            // (~65 ms away at 30 fps input).  PresentThread's WaitForSingleObject
-            // at 60 Hz takes ≤ 17 ms, so its cmdQueue12 draw is always submitted
-            // before the overwrite, keeping the queue safely ordered.
+            else
             {
-                PresentFrame pf;
-                pf.nchwBuf = rife_->InBuf0();
-                pf.bgraRef = refTex_.Get();  // same reference frame shown for both presents
-                pf.vidW    = frame.width;
-                pf.vidH    = frame.height;
-                pf.paddedW = pw;
-                pf.paddedH = ph;
-                if (!presentQueue_.Push(pf))
-                    telemetry_->OnDroppedFrame();
+                // ── 2x inference (default) ───────────────────────────────────
+                printf("[rife] running inference\n"); fflush(stdout);
+                telemetry_->OnRifeStart();
+                rife_->Run();
+                printf("[rife] inference done\n"); fflush(stdout);
+                telemetry_->OnRifeEnd();
+
+                // Push interpolated mid frame.
+                {
+                    PresentFrame pf;
+                    pf.nchwBuf = rife_->OutBuf();
+                    pf.bgraRef = refTex_.Get();
+                    pf.vidW    = frame.width;
+                    pf.vidH    = frame.height;
+                    pf.paddedW = pw;
+                    pf.paddedH = ph;
+                    if (!presentQueue_.Push(pf))
+                        telemetry_->OnDroppedFrame();
+                }
+
+                // Shift: InBuf1 → InBuf0 for next pair.
+                converter_->CopyBuffer(rife_->InBuf1(), rife_->InBuf0(), pw, ph, fence);
+                fence.Wait();
+
+                // Push original frame (InBuf0 stable until next CopyBuffer ~33ms away).
+                {
+                    PresentFrame pf;
+                    pf.nchwBuf = rife_->InBuf0();
+                    pf.bgraRef = refTex_.Get();
+                    pf.vidW    = frame.width;
+                    pf.vidH    = frame.height;
+                    pf.paddedW = pw;
+                    pf.paddedH = ph;
+                    if (!presentQueue_.Push(pf))
+                        telemetry_->OnDroppedFrame();
+                }
             }
 
             // Return current frame's D3D11 resource.
