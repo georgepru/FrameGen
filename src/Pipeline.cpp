@@ -124,6 +124,7 @@ Pipeline::Pipeline(const Config& cfg)
 
         makeScratch(scratch0_);
         makeScratch(scratch1_);
+        makeScratch(scratch2_);
         printf("[pipeline] 4x mode: scratch buffers allocated (%.1f MB each)\n",
                bufBytes / (1024.0 * 1024.0));
         fflush(stdout);
@@ -341,10 +342,18 @@ void Pipeline::RifeThread()
                 rife_->Run();
                 telemetry_->OnRifeEnd();
 
-                // Push Q1 (OutBuf).
+                // Copy Q1 from OutBuf into scratch2_ immediately.
+                // OutBuf will be overwritten by Pass 3 on dmlQueue12, which runs
+                // on a different queue from cmdQueue12 (PresentThread's reader).
+                // scratch2_ = Q1 is read-only from here; won't be touched again
+                // until the next 4x cycle, giving PresentThread ample time.
+                converter_->CopyBuffer(rife_->OutBuf(), scratch2_.Get(), pw, ph, fence);
+                fence.Wait();  // scratch2_ = Q1 (stable for PresentThread)
+
+                // Push Q1 (scratch2_, not OutBuf — OutBuf is now free for Pass 3).
                 {
                     PresentFrame pf;
-                    pf.nchwBuf = rife_->OutBuf();
+                    pf.nchwBuf = scratch2_.Get();
                     pf.bgraRef = refTex_.Get();
                     pf.vidW = frame.width; pf.vidH = frame.height;
                     pf.paddedW = pw;       pf.paddedH = ph;

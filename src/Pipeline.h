@@ -81,9 +81,10 @@ private:
     FrameQueue<CapturedFrame> captureQueue_{ 3 };  // shallow — drop old frames
     FrameQueue<PresentFrame>  presentQueue_{ 8 };  // 4x mode pushes 4 frames per pair
 
-    ComPtr<ID3D12Resource>    refTex_;              // D3D12 BGRA copy used as compare-mode right panel
-    ComPtr<ID3D12Resource>    scratch0_;            // 4x mode: holds M = interp(A,B)
-    ComPtr<ID3D12Resource>    scratch1_;            // 4x mode: holds B while InBuf1 is overwritten
+    ComPtr<ID3D12Resource>    refTex_;            // D3D12 BGRA copy used as compare-mode right panel
+    ComPtr<ID3D12Resource>    scratch0_;           // 4x mode: holds M = interp(A,B)
+    ComPtr<ID3D12Resource>    scratch1_;           // 4x mode: holds B while InBuf1 is overwritten
+    ComPtr<ID3D12Resource>    scratch2_;           // 4x mode: stable copy of Q1 so OutBuf is free for Pass 3
 
     std::thread captureThread_;
     std::thread rifeThread_;
