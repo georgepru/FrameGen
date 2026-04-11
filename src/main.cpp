@@ -117,7 +117,7 @@ int main(int, char**)
     bool         compareMode   = false; // --compare: side-by-side comparison window
     bool         halfRateInput = false; // --half-rate: drop every other input frame
     bool         fourXMode    = false; // --4x: 3-pass 30→120fps (requires 120Hz display)
-
+    bool         debugD3D     = false; // --debug: enable D3D12 debug layer
     for (int i = 1; i < argc; ++i)
     {
         std::wstring arg(argv[i]);
@@ -136,6 +136,10 @@ int main(int, char**)
         else if (arg == L"--4x")
         {
             fourXMode = true;
+        }
+        else if (arg == L"--debug")
+        {
+            debugD3D = true;
         }
         else if (arg.size() > 5 &&
                  (arg.substr(arg.size()-4) == L".mp4"  ||
@@ -227,7 +231,7 @@ int main(int, char**)
     cfg.onnxPath     = onnxPath;
     cfg.logPath      = logPath;
     cfg.hwnd         = hwnd;
-    cfg.debugD3D     = false;
+    cfg.debugD3D     = debugD3D;
     cfg.compareMode  = compareMode;
     cfg.halfRateInput = halfRateInput;
     cfg.fourXMode    = fourXMode;

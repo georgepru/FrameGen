@@ -520,9 +520,16 @@ void Pipeline::PresentThread()
     }
     catch (const std::exception& e)
     {
-        threadError_  = std::string("Present thread: ") + e.what();
+        // If device was removed, log the detailed reason.
+        HRESULT removedReason = ctx_->device12->GetDeviceRemovedReason();
+        char removedBuf[128] = {};
+        if (FAILED(removedReason))
+            snprintf(removedBuf, sizeof(removedBuf),
+                     " [DeviceRemovedReason=0x%08X]", (unsigned)removedReason);
+
+        threadError_  = std::string("Present thread: ") + e.what() + removedBuf;
         threadFailed_ = true;
-        printf("[present] EXCEPTION: %s\n", e.what()); fflush(stdout);
+        printf("[present] EXCEPTION: %s%s\n", e.what(), removedBuf); fflush(stdout);
         running_ = false;
         captureQueue_.Interrupt();
         presentQueue_.Interrupt();
