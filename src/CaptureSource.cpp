@@ -82,12 +82,55 @@ CaptureSource::CaptureSource(UINT deviceIndex,
     fflush(stdout);
 
     SetupSourceReader(devices[deviceIndex].symbolicLink);
+
+    // Allocate staging D3D12 textures + copy command infrastructure.
+    // Resolution is known now (SetupSourceReader populated videoWidth_/Height_).
+    {
+        D3D12_HEAP_PROPERTIES hp = {};
+        hp.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+        D3D12_RESOURCE_DESC rd = {};
+        rd.Dimension          = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        rd.Width              = videoWidth_;
+        rd.Height             = videoHeight_;
+        rd.DepthOrArraySize   = 1;
+        rd.MipLevels          = 1;
+        rd.Format             = DXGI_FORMAT_B8G8R8A8_UNORM;
+        rd.SampleDesc.Count   = 1;
+        rd.Layout             = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        rd.Flags              = D3D12_RESOURCE_FLAG_NONE;
+
+        for (int i = 0; i < kStagingCount; ++i)
+            HR_CHECK(ctx_.device12->CreateCommittedResource(
+                &hp, D3D12_HEAP_FLAG_NONE, &rd,
+                D3D12_RESOURCE_STATE_COMMON, nullptr,
+                IID_PPV_ARGS(&stagingTex_[i])));
+
+        HR_CHECK(ctx_.device12->CreateCommandAllocator(
+            D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&copyAlloc_)));
+        HR_CHECK(ctx_.device12->CreateCommandList(
+            0, D3D12_COMMAND_LIST_TYPE_DIRECT, copyAlloc_.Get(), nullptr,
+            IID_PPV_ARGS(&copyCmdList_)));
+        copyCmdList_->Close();
+
+        HR_CHECK(ctx_.device12->CreateFence(
+            0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&copyFence_)));
+        copyFenceEvent_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        if (!copyFenceEvent_)
+            throw std::runtime_error("CreateEvent failed for copy fence");
+    }
 }
 
 // ---------------------------------------------------------------------------
 CaptureSource::~CaptureSource()
 {
     Stop();
+
+    if (copyFenceEvent_)
+    {
+        CloseHandle(copyFenceEvent_);
+        copyFenceEvent_ = nullptr;
+    }
 
     if (flushEvent_)
     {
@@ -280,19 +323,20 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
     }
     dxgiBuf->GetSubresourceIndex(&subresource);
 
-    // ── Unwrap the D3D11On12 texture to get its underlying D3D12 resource ───
-    // MF created this texture on our D3D11On12 device, so it has a D3D12
-    // resource underneath.  UnwrapUnderlyingResource flushes D3D11 work and
-    // hands the D3D12 resource to the specified queue for D3D12 use.
-    // Caller (Pipeline) must call ReturnUnderlyingResource when GPU work done.
-    ComPtr<ID3D12Resource> res12;
+    // ── Unwrap MF texture, copy to our staging resource, return MF tex now ───
+    // At 60 fps, MF's 2–3 pooled textures are recycled every ~16 ms.  If the
+    // RifeThread hasn't called ReturnUnderlyingResource on the previous frame's
+    // MF texture by the time the next callback fires, UnwrapUnderlyingResource
+    // returns E_INVALIDARG (resource still "owned" by D3D12).
+    // Fix: immediately after getting the D3D12 handle, copy to our own staging
+    // texture, synchronously wait for the copy, then return the MF texture so
+    // its pool slot is free before we even push to the capture queue.
+    ComPtr<ID3D12Resource> mfRes12;
     HRESULT wrapHr = ctx_.on12->UnwrapUnderlyingResource(
-        tex11.Get(), ctx_.cmdQueue12.Get(), IID_PPV_ARGS(&res12));
+        tex11.Get(), ctx_.cmdQueue12.Get(), IID_PPV_ARGS(&mfRes12));
 
     if (FAILED(wrapHr))
     {
-        // MF gave us a texture we can't unwrap (e.g. from a different device).
-        // Skip frame — next callback will try again.
         printf("[capture] UnwrapUnderlyingResource failed 0x%08X, skipping\n",
                (unsigned)wrapHr);
         fflush(stdout);
@@ -300,22 +344,74 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
         return S_OK;
     }
 
+    // Round-robin staging slot selection.
+    const int usedSlot  = stagingIdx_;
+    stagingIdx_         = (stagingIdx_ + 1) % kStagingCount;
+    ID3D12Resource* stagingDst = stagingTex_[usedSlot].Get();
+
+    // Record copy: mfRes12 → stagingDst (both textures start in COMMON).
+    HR_CHECK(copyAlloc_->Reset());
+    HR_CHECK(copyCmdList_->Reset(copyAlloc_.Get(), nullptr));
+
+    D3D12_RESOURCE_BARRIER bars[2] = {};
+    // mfRes12: COMMON → COPY_SOURCE
+    bars[0].Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    bars[0].Transition.pResource   = mfRes12.Get();
+    bars[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+    bars[0].Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    bars[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    // stagingDst: COMMON → COPY_DEST
+    bars[1].Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    bars[1].Transition.pResource   = stagingDst;
+    bars[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+    bars[1].Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_DEST;
+    bars[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    copyCmdList_->ResourceBarrier(2, bars);
+
+    copyCmdList_->CopyResource(stagingDst, mfRes12.Get());
+
+    // Transition both back to COMMON.
+    // stagingDst must be COMMON when TextureConverter::BGRAtoNCHW reads it.
+    bars[0].Transition.pResource   = mfRes12.Get();
+    bars[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    bars[0].Transition.StateAfter  = D3D12_RESOURCE_STATE_COMMON;
+    bars[1].Transition.pResource   = stagingDst;
+    bars[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    bars[1].Transition.StateAfter  = D3D12_RESOURCE_STATE_COMMON;
+    copyCmdList_->ResourceBarrier(2, bars);
+
+    HR_CHECK(copyCmdList_->Close());
+    ID3D12CommandList* lists[] = { copyCmdList_.Get() };
+    ctx_.cmdQueue12->ExecuteCommandLists(1, lists);
+
+    // CPU-wait for copy completion.
+    // ReturnUnderlyingResource requires all D3D12 GPU work on mfRes12 to finish.
+    UINT64 fenceVal = ++copyFenceVal_;
+    HR_CHECK(ctx_.cmdQueue12->Signal(copyFence_.Get(), fenceVal));
+    if (copyFence_->GetCompletedValue() < fenceVal)
+    {
+        copyFence_->SetEventOnCompletion(fenceVal, copyFenceEvent_);
+        WaitForSingleObject(copyFenceEvent_, INFINITE);
+    }
+
+    // Return MF texture immediately — pool slot is free before the next callback.
+    ctx_.on12->ReturnUnderlyingResource(tex11.Get(), 0, nullptr, nullptr);
+
     // ── Build CapturedFrame and push ────────────────────────────────────────
     CapturedFrame frame;
-    frame.texBGRA     = res12;
-    frame.tex11       = tex11;
+    frame.texBGRA     = stagingTex_[usedSlot];  // our D3D12 copy (in COMMON state)
+    frame.tex11       = nullptr;                 // MF texture already returned above
     frame.width       = videoWidth_;
     frame.height      = videoHeight_;
     LARGE_INTEGER qpc;
     QueryPerformanceCounter(&qpc);
     frame.captureTime = qpc.QuadPart;
 
-    // Push: if full, drop this frame and stay fresh.
-    // Non-blocking try: if the queue is full we just skip this frame.
+    // Back-pressure: blocks if queue is full (depth 3), false only on interrupt.
     if (!queue_.Push(std::move(frame)))
     {
-        // Queue interrupted or rejected — return D3D11 resource immediately.
-        ctx_.on12->ReturnUnderlyingResource(tex11.Get(), 0, nullptr, nullptr);
+        // Shutdown path — staging slot reclaimed on next round-robin without
+        // any D3D11 cleanup (MF texture was already returned above).
     }
 
     RequestNextSample();

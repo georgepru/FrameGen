@@ -90,4 +90,21 @@ private:
 
     // Event signalled when MF flush completes (used in Stop()).
     HANDLE flushEvent_ = nullptr;
+
+    // ── D3D12 staging copy infrastructure ──────────────────────────────────
+    // MF reuses a small texture pool; holding UnwrapUnderlyingResource until
+    // GPU work finishes (> 16 ms at 60 fps) causes E_INVALIDARG when MF tries
+    // to deliver the next frame using the same pooled texture.
+    // Fix: copy the MF texture into our own staging D3D12 resource immediately,
+    // call ReturnUnderlyingResource right in the callback, and deliver the
+    // staging copy downstream.  Staging textures are round-robined; 6 slots
+    // cover captureQueue_ depth-3 back-pressure + 1 in RifeThread + 1 in flight.
+    static constexpr int kStagingCount = 6;
+    ComPtr<ID3D12Resource>            stagingTex_[kStagingCount];
+    int                               stagingIdx_     = 0;
+    ComPtr<ID3D12CommandAllocator>    copyAlloc_;
+    ComPtr<ID3D12GraphicsCommandList> copyCmdList_;
+    ComPtr<ID3D12Fence>               copyFence_;
+    UINT64                            copyFenceVal_   = 0;
+    HANDLE                            copyFenceEvent_ = nullptr;
 };
