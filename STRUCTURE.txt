@@ -1,0 +1,286 @@
+================================================================================
+  FrameGen MVP — Project Structure & Setup Guide
+  Last updated: April 12, 2026
+================================================================================
+
+This document covers every file and folder in the project, what it does, what
+is tracked in git, what is NOT in git (and why), and how to get from zero to
+a running instance on a new machine.
+
+--------------------------------------------------------------------------------
+1. WHAT IS THIS PROJECT
+--------------------------------------------------------------------------------
+Real-time frame interpolation pipeline. Captures video from an Elgato capture
+card (Xbox One S → Elgato 4K Pro → PC), runs RIFE v4.6 neural interpolation
+via ONNX Runtime + DirectML on the GPU, and presents the result fullscreen.
+
+Target use case:
+  30fps game in 60fps container (Xbox One S) → 60fps smooth output
+  Command: framegen_mvp.exe --half-rate rife_1080p.onnx 0
+
+Hardware tested: RTX 5080, Elgato 4K Pro (USB), Xbox One S, 60Hz display.
+
+--------------------------------------------------------------------------------
+2. FOLDER & FILE STRUCTURE
+--------------------------------------------------------------------------------
+
+FrameGenProject/
+│
+├── src/                        ← ALL C++ SOURCE (tracked in git)
+│   ├── Common.h                  Project-wide includes, HR_CHECK macro, ComPtr
+│   ├── D3DContext.h/.cpp         D3D12 + D3D11On12 device/queue setup
+│   ├── CaptureSource.h/.cpp      Media Foundation capture card reader.
+│   │                             Pre-allocates 6 staging D3D12 textures, copies
+│   │                             each MF frame immediately, releases MF pool slot
+│   │                             in <1ms. Wrapped in try/catch on the MF thread.
+│   ├── FileSource.h/.cpp         MP4/MKV file playback source (--file mode, no
+│   │                             capture card needed for testing)
+│   ├── FrameQueue.h              Thread-safe bounded queue used between threads.
+│   │                             captureQueue_ depth=3, presentQueue_ depth=8
+│   ├── TextureConverter.h/.cpp   BGRA D3D12 texture → NCHW FP16 buffer via
+│   │                             compiled compute shader (BGRAtoNCHW.hlsl)
+│   ├── RifeInference.h/.cpp      ONNX Runtime session wrapper. Runs RIFE v4.6
+│   │                             IFNet_HDv3 on DirectML EP. Inputs: frame0/frame1
+│   │                             [1,3,H,W] FP16. Output: mid [1,3,H,W] FP16.
+│   ├── SwapPresenter.h/.cpp      DXGI FLIP_SEQUENTIAL swap chain. Presents the
+│   │                             NCHW FP16 output buffer fullscreen via a custom
+│   │                             shader (NCHWPresent.hlsl). Also handles compare
+│   │                             mode (interpolated left / original right).
+│   │                             Frame-latency waitable object with MAX_LATENCY=1.
+│   ├── Overlay.h/.cpp            D2D1 + DWrite text overlay rendered via D3D11On12
+│   │                             interop. Full-width top bar showing metrics.
+│   │                             Toggled with M key.
+│   ├── Telemetry.h/.cpp          Rolling timing statistics. Tracks In/Out FPS,
+│   │                             RIFE inference ms, InGap (capture interval),
+│   │                             PGap (present-to-present interval), WaitMs
+│   │                             (time in waitable), Gap40+/m (source hiccups).
+│   │                             Writes CSV on exit.
+│   ├── Pipeline.h/.cpp           Owns and coordinates three worker threads:
+│   │                               CaptureThread  — polls CaptureSource
+│   │                               RifeThread     — BGRA→NCHW, runs inference,
+│   │                                                pushes PresentFrame
+│   │                               PresentThread  — calls SwapPresenter::Present
+│   │                             Contains --half-rate logic (skipNext), gap
+│   │                             detection (>300ms resets prevFrame), CPU pacing
+│   │                             (16.67ms sleep+spin after interpolated present).
+│   └── main.cpp                  Entry point. Parses args, creates window,
+│                                 constructs Pipeline. Key controls:
+│                                   Q/Esc = quit
+│                                   I     = toggle RIFE on/off
+│                                   M     = toggle metrics overlay
+│                                   D     = list capture devices
+│
+├── shaders/                    ← HLSL SHADER SOURCE (tracked in git)
+│   ├── BGRAtoNCHW.hlsl           Compute shader: BGRA u8 texture → NCHW FP16
+│   │                             buffer. Pads to multiples of 32.
+│   ├── NCHWPresent.hlsl          VS+PS: NCHW FP16 buffer → fullscreen quad.
+│   │                             Handles aspect-ratio UV correction for compare
+│   │                             mode and letterbox/pillarbox.
+│   └── BGRAPresent.hlsl          VS+PS: raw BGRA texture → right half (compare
+│                                 mode only, original frame reference).
+│
+├── deps/                       ← THIRD-PARTY DEPENDENCIES (NOT in git)
+│   └── onnxruntime/              ONNX Runtime 1.24.4 DirectML EP package.
+│       │                         *** THIS IS THE #1 REASON OTHER PCs FAIL ***
+│       │                         Get it from:
+│       │                         https://github.com/microsoft/onnxruntime/releases/tag/v1.24.4
+│       │                         File: onnxruntime-win-x64-directml-1.24.4.zip
+│       │                         Extract here so the layout matches below.
+│       ├── include/
+│       │   ├── onnxruntime_cxx_api.h     Main C++ API header
+│       │   ├── onnxruntime_c_api.h       C API (included by cxx_api)
+│       │   ├── dml_provider_factory.h    DirectML execution provider factory
+│       │   ├── DirectML.h                DirectML COM interface declarations
+│       │   └── (several more .h files)
+│       ├── lib/
+│       │   ├── onnxruntime.lib           Import library (link against this)
+│       │   ├── onnxruntime.dll           Runtime DLL (copy to exe folder)
+│       │   ├── onnxruntime_providers_shared.lib
+│       │   └── onnxruntime_providers_shared.dll (copy to exe folder)
+│       ├── VERSION_NUMBER            = 1.24.4
+│       └── GIT_COMMIT_ID             = 2d924974ef147392ced8409d36bd6d2e7fcc8a74
+│
+├── build/                      ← CMAKE BUILD OUTPUT (NOT in git)
+│   ├── Release/
+│   │   ├── framegen_mvp.exe          The compiled application
+│   │   ├── onnxruntime.dll           Copied here by CMake post-build step
+│   │   ├── onnxruntime_providers_shared.dll
+│   │   ├── rife_720p.onnx            720p RIFE model graph (gitignored)
+│   │   ├── rife_720p.onnx.data       720p RIFE model weights ~15.5MB (gitignored)
+│   │   ├── rife_1080p.onnx           1080p RIFE model graph (gitignored)
+│   │   ├── rife_1080p.onnx.data      1080p RIFE model weights ~22.1MB (gitignored)
+│   │   └── framegen_log.csv          Telemetry CSV written on clean exit
+│   └── compiled_shaders/             Auto-generated C headers from HLSL compile
+│       ├── BGRAtoNCHW.h              (embedded shader bytecode, included in .cpp)
+│       ├── BGRAPresentPS.h
+│       ├── BGRAPresentVS.h
+│       ├── NCHWPresentPS.h
+│       └── NCHWPresentVS.h
+│
+├── CMakeLists.txt              ← BUILD SCRIPT (tracked in git)
+│                                 Requires VS2022, x64, C++20
+│                                 Compiles shaders with fxc at configure time
+│                                 Links: d3d12, d3d11, d2d1, dwrite, dxgi,
+│                                        dxguid, mfplat, mfreadwrite, mfuuid,
+│                                        shell32, user32, gdi32, onnxruntime
+│
+├── export_rife.py              ← MODEL EXPORT (tracked in git)
+│                                 Downloads flownet_v4.6.pkl from HolyWu GitHub,
+│                                 exports FP16 ONNX opset 18 at given resolution.
+│                                 Usage:
+│                                   python export_rife.py --width 1920 --height 1080
+│                                     --out build\Release\rife_1080p.onnx
+│                                   python export_rife.py --width 1280 --height 720
+│                                     --out build\Release\rife_720p.onnx
+│                                 Requires: pip install torch onnxscript numpy
+│
+├── flownet_v4.6.pkl            ← RIFE PYTORCH WEIGHTS (NOT in git, 20.3MB)
+│                                 Downloaded automatically by export_rife.py.
+│                                 Only needed to re-export the ONNX model.
+│                                 If you have the .onnx files already, skip this.
+│
+├── .gitignore                  Excludes: build/, deps/onnxruntime/, *.onnx,
+│                               *.pkl, __pycache__/
+│
+├── README.md                   (tracked in git)
+├── NEXT_STEPS.md               (tracked in git)
+├── crash_4x.log                Reference crash log from 4x interpolation attempt
+│                               (tracked in git as reference)
+└── STRUCTURE.txt               ← THIS FILE
+
+--------------------------------------------------------------------------------
+3. WHAT IS NOT IN GIT AND WHY
+--------------------------------------------------------------------------------
+
+  deps/onnxruntime/             Too large (~17MB DLL), third-party binary
+  build/                        Generated, machine-specific MSBuild artifacts
+  *.onnx / *.onnx.data          Large model files, generated by export_rife.py
+  *.pkl                         Large PyTorch weights, downloaded by export script
+  __pycache__/                  Python bytecache
+
+--------------------------------------------------------------------------------
+4. SETUP ON A NEW MACHINE
+--------------------------------------------------------------------------------
+
+Prerequisites:
+  - Visual Studio 2022 (Community or better), with "Desktop development with C++"
+    workload (includes MSVC 19.x, Windows SDK 10.0.x)
+  - CMake 3.22+ (included with VS2022, or install separately)
+  - Python 3.10+ with pip (only needed to export the ONNX model)
+
+Steps:
+
+  1. Clone the repo:
+       git clone https://github.com/georgepru/FrameGen.git
+       cd FrameGen
+
+  2. Get ONNX Runtime 1.24.4 (EXACT VERSION — do not substitute):
+       Download: https://github.com/microsoft/onnxruntime/releases/tag/v1.24.4
+       File: onnxruntime-win-x64-directml-1.24.4.zip
+       Extract to: deps\onnxruntime\
+       Verify: deps\onnxruntime\include\onnxruntime_cxx_api.h  exists
+               deps\onnxruntime\lib\onnxruntime.lib             exists
+
+     -OR- if checking out the feature/full-snapshot branch, deps\ is already there.
+
+  3. Configure and build:
+       cmake -B build -G "Visual Studio 17 2022" -A x64
+       cmake --build build --config Release
+
+  4. Export the RIFE model (skip if you have the .onnx.data files already):
+       pip install torch onnxscript numpy
+       python export_rife.py --width 1920 --height 1080 --out build\Release\rife_1080p.onnx
+       python export_rife.py --width 1280 --height 720  --out build\Release\rife_720p.onnx
+
+  5. Run:
+       cd build\Release
+       .\framegen_mvp.exe --half-rate rife_1080p.onnx 0
+
+--------------------------------------------------------------------------------
+5. COMMAND LINE OPTIONS
+--------------------------------------------------------------------------------
+
+  framegen_mvp.exe [--half-rate] [--4x] [--file <video>] [--compare]
+                   [--debug] [rife.onnx] [deviceIndex]
+
+  --half-rate    Skip every other input frame (30fps game in 60fps container).
+                 Required for Xbox One S output. Enables per-frame gap detection.
+  --4x           3-pass 30→120fps (WARNING: causes GPU TDR on RTX 5080, abandoned)
+  --file <path>  Use a video file instead of a capture card (for testing)
+  --compare      Side-by-side: interpolated left, original right
+  --debug        Enable D3D12 debug layer (very slow, use only for GPU errors)
+  rife.onnx      Path to the ONNX model (default: rife.onnx in exe directory)
+  deviceIndex    Capture device index from --D list (default: 0)
+
+  Keys while running:
+    M     Toggle metrics overlay (top bar)
+    I     Toggle RIFE interpolation on/off
+    D     Print capture device list to console
+    Q/Esc Quit
+
+--------------------------------------------------------------------------------
+6. OVERLAY METRICS
+--------------------------------------------------------------------------------
+
+  In fps      Capture input rate (60fps raw from Xbox, or 30fps from game side)
+  Out fps     Present output rate (target: 60fps)
+  Drop        Cumulative frames dropped (presentQueue_ full)
+  RIFE ms     Last inference duration (8ms typical at 1080p on RTX 5080)
+  InGap ms    Time between last two capture arrivals. Spikes = source/capture
+              dropped a frame. NOT a framegen bug.
+  PGap ms     Time between consecutive presents. Target: 16.7ms at 60fps.
+  Wait ms     Time spent in DXGI frame latency waitable. Near 0 = behind vsync.
+  Gap40+/m    Input gaps >40ms in the last 60 seconds. Console hiccup counter.
+
+--------------------------------------------------------------------------------
+7. KEY TECHNICAL DECISIONS (and why)
+--------------------------------------------------------------------------------
+
+FLIP_SEQUENTIAL (not FLIP_DISCARD):
+  FLIP_DISCARD silently drops the interpolated frame when both presents arrive
+  within the same vsync interval (~1ms apart). FLIP_SEQUENTIAL guarantees all
+  queued frames are shown in order.
+
+CPU sleep+spin pacing (not WaitForVBlank or DwmFlush):
+  After presenting the interpolated frame, PresentThread sleeps 14.67ms then
+  busy-spins to exactly 16.67ms before presenting the original. This ensures
+  both land on separate vsyncs. IDXGIOutput::WaitForVBlank caused GPU TDR
+  (LiveKernelEvent 141) on RTX 5080 drivers. DwmFlush also caused TDRs.
+
+No ALLOW_TEARING flag:
+  Changes waitable object semantics to signal on queue-acceptance (~0ms) rather
+  than on vblank, which breaks frame pacing.
+
+Staging texture copy in CaptureSource:
+  Each MF frame is immediately copied to a pre-allocated staging D3D12 texture
+  and the MF pool slot is returned in <1ms. Prevents MF pool exhaustion which
+  caused 0x80070057 errors under sustained load.
+
+ORT 1.24.4 + DirectML EP:
+  MUST match exactly. Different ORT versions have different DirectML integration
+  code and may not recognize the same session options or provider APIs.
+  The exact DLL that was tested: onnxruntime.dll 17,328,152 bytes.
+
+--------------------------------------------------------------------------------
+8. KNOWN ISSUES
+--------------------------------------------------------------------------------
+
+Occasional silent GPU TDR (0x887A0005 DXGI_ERROR_DEVICE_REMOVED):
+  Happens after several minutes of running. No exception is logged — the driver
+  just drops out. Likely related to ORT 1.24.4 + DirectML EP under sustained
+  inference load on RTX 5080.
+  Workaround: restart the app when it crashes.
+  To investigate: check Windows Event Log → System → LiveKernelEvent 141
+                  at the time of crash.
+
+4x interpolation (--4x) causes GPU TDR reliably:
+  3 sequential RIFE passes × ~8ms + fence stalls exceeds the 8.3ms frame budget
+  at 120Hz. Abandoned. The flag still exists but is not recommended.
+
+InGap spikes (Xbox One S source drops):
+  The Xbox One S drops frames during loading screens, cutscenes, or GPU-heavy
+  scenes. These appear as InGap >40ms and cause a single-frame stutter. Not a
+  framegen bug — the gap detection (300ms threshold) resets prevFrame and
+  skipNext to prevent stale interpolation from stale input.
+
+================================================================================
