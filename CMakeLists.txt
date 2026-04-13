@@ -40,6 +40,7 @@ endif()
 set(SOURCES
     src/main.cpp
     src/D3DContext.cpp
+    src/NearDuplicateDetector.cpp
     src/AudioPlayer.cpp
     src/AudioCaptureSource.cpp
     src/CaptureSource.cpp
@@ -72,6 +73,7 @@ function(compile_shader INPUT ENTRY PROFILE VARNAME OUTPUT_H)
 endfunction()
 
 compile_shader(${SHADER_DIR}/BGRAtoNCHW.hlsl  main   cs_5_0  g_BGRAtoNCHW    BGRAtoNCHW.h)
+compile_shader(${SHADER_DIR}/NearDuplicateCS.hlsl main cs_5_0 g_NearDuplicateCS NearDuplicateCS.h)
 compile_shader(${SHADER_DIR}/NCHWPresent.hlsl  VSMain vs_5_0  g_NCHWPresentVS NCHWPresentVS.h)
 compile_shader(${SHADER_DIR}/NCHWPresent.hlsl  PSMain ps_5_0  g_NCHWPresentPS NCHWPresentPS.h)
 compile_shader(${SHADER_DIR}/BGRAPresent.hlsl  VSMain vs_5_0  g_BGRAPresentVS BGRAPresentVS.h)

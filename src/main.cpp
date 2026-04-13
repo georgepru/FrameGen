@@ -25,6 +25,9 @@
 // Usage (disable separate audio endpoint capture/playback):
 //   framegen_mvp.exe --no-audio [other flags]
 //
+// Usage (GPU near-duplicate detection for 30-in-60 streams):
+//   framegen_mvp.exe --gpu-dedupe [--dedupe-threshold N]
+//
 // Usage (30fps game in 60fps container, e.g. Xbox One S):
 //   framegen_mvp.exe --half-rate [rife.onnx] [deviceIndex]
 //
@@ -133,6 +136,8 @@ int main(int, char**)
     bool         compareMode   = false; // --compare: side-by-side comparison window
     bool         noOverlay     = true;  // default safe mode: overlay disabled unless --overlay is passed
     bool         noAudio       = false; // --no-audio: disable separate audio endpoint path
+    bool         gpuDedupe     = false; // --gpu-dedupe: compare frame content on GPU before RIFE
+    UINT         dedupeThreshold = 12;  // --dedupe-threshold: sampled changed-pixel threshold
     bool         halfRateInput = false; // --half-rate: drop every other input frame
     bool         fourXMode    = false; // --4x: 3-pass 30→120fps (requires 120Hz display)
     bool         debugD3D     = false; // --debug: enable D3D12 debug layer
@@ -158,6 +163,14 @@ int main(int, char**)
         else if (arg == L"--no-audio")
         {
             noAudio = true;
+        }
+        else if (arg == L"--gpu-dedupe")
+        {
+            gpuDedupe = true;
+        }
+        else if (arg == L"--dedupe-threshold" && i + 1 < argc)
+        {
+            dedupeThreshold = static_cast<UINT>(_wtoi(argv[++i]));
         }
         else if (arg == L"--half-rate" || arg == L"-h")
         {
@@ -267,6 +280,8 @@ int main(int, char**)
     cfg.compareMode  = compareMode;
     cfg.noOverlay    = noOverlay;
     cfg.noAudio      = noAudio;
+    cfg.gpuDedupe    = gpuDedupe;
+    cfg.dedupeThreshold = dedupeThreshold;
     cfg.halfRateInput = halfRateInput;
     cfg.fourXMode    = fourXMode;
     cfg.screenW      = (UINT)GetSystemMetrics(SM_CXSCREEN);
@@ -274,6 +289,7 @@ int main(int, char**)
 
     printf("[main] overlay mode: %s\n", cfg.noOverlay ? "OFF (--no-overlay default)" : "ON (--overlay)");
     printf("[main] audio mode: %s\n", cfg.noAudio ? "OFF (--no-audio)" : "ON (default)");
+    printf("[main] dedupe mode: %s (threshold=%u)\n", cfg.gpuDedupe ? "ON (--gpu-dedupe)" : "OFF", cfg.dedupeThreshold);
     fflush(stdout);
 
     int exitCode = 0;

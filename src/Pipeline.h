@@ -12,6 +12,7 @@
 #include "CaptureSource.h"
 #include "AudioCaptureSource.h"
 #include "FileSource.h"
+#include "NearDuplicateDetector.h"
 #include "TextureConverter.h"
 #include "RifeInference.h"
 #include "SwapPresenter.h"
@@ -44,6 +45,8 @@ public:
         bool         compareMode    = false; // --compare: show interpolated left, original right
         bool         noOverlay      = true;  // default safe mode: overlay disabled unless --overlay is passed
         bool         noAudio        = false; // --no-audio: disable separate audio endpoint capture/playback
+        bool         gpuDedupe      = false; // --gpu-dedupe: skip near-identical captured frames
+        UINT         dedupeThreshold = 12;   // max changed sampled pixels to treat as duplicate
         bool         halfRateInput  = false; // --half-rate: consume every other input frame (30fps game in 60fps container)
         bool         fourXMode      = false; // --4x: 3-pass recursive interp 30→120fps (requires 120Hz display)
         UINT         screenW    = 0;      // full screen dimensions for compare mode swapchain
@@ -80,6 +83,7 @@ private:
     std::unique_ptr<D3DContext>       ctx_;
     std::unique_ptr<CaptureSource>    capture_;
     std::unique_ptr<AudioCaptureSource> audioCapture_;
+    std::unique_ptr<NearDuplicateDetector> dedupeDetector_;
     std::unique_ptr<FileSource>       fileSource_;
     std::unique_ptr<TextureConverter> converter_;
     std::unique_ptr<RifeInference>    rife_;

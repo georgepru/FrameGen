@@ -19,6 +19,22 @@ Pipeline::Pipeline(const Config& cfg)
     // D3D context
     ctx_ = std::make_unique<D3DContext>(D3DContext::Create(cfg_.debugD3D));
 
+    if (cfg_.gpuDedupe)
+    {
+        try
+        {
+            dedupeDetector_ = std::make_unique<NearDuplicateDetector>(*ctx_);
+            printf("[pipeline] gpu dedupe enabled (threshold=%u)\n", cfg_.dedupeThreshold);
+            fflush(stdout);
+        }
+        catch (const std::exception& ex)
+        {
+            printf("[pipeline] gpu dedupe init failed (%s) -- disabling\n", ex.what());
+            fflush(stdout);
+            dedupeDetector_.reset();
+        }
+    }
+
     // Telemetry
     telemetry_ = std::make_unique<Telemetry>(cfg_.logPath);
 
@@ -259,11 +275,35 @@ void Pipeline::RifeThread()
                 }
             }
 
+            // ── GPU near-duplicate drop (content-based) ────────────────────
+            // If enabled, compare this frame against the previous kept frame
+            // on a reduced GPU sampling grid and skip near-identical frames.
+            if (cfg_.gpuDedupe && dedupeDetector_ && prevFrame)
+            {
+                UINT changed = 0;
+                if (dedupeDetector_->IsNearDuplicate(
+                        prevFrame->texBGRA.Get(),
+                        frame.texBGRA.Get(),
+                        frame.width,
+                        frame.height,
+                        cfg_.dedupeThreshold,
+                        &changed))
+                {
+                    if (frame.tex11)
+                    {
+                        ctx_->on12->ReturnUnderlyingResource(
+                            frame.tex11.Get(), 0, nullptr, nullptr);
+                        frame.tex11 = nullptr;
+                    }
+                    continue;
+                }
+            }
+
             // ── Half-rate input: drop every other frame ──────────────────────
             // Xbox One S (and similar consoles) lock 30fps games to a 60fps
             // container, resulting in duplicate frames.  Dropping every other
             // frame gives RIFE unique A/B pairs instead of wasted A/A pairs.
-            if (cfg_.halfRateInput)
+            if (cfg_.halfRateInput && !(cfg_.gpuDedupe && dedupeDetector_))
             {
                 if (skipNext)
                 {
