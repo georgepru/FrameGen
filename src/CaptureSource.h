@@ -19,6 +19,7 @@
 #include "Common.h"
 #include "D3DContext.h"
 #include "FrameQueue.h"
+#include "AudioPlayer.h"
 
 // One live-captured, GPU-resident video frame.
 struct CapturedFrame
@@ -70,7 +71,7 @@ public:
 
 private:
     void SetupSourceReader(const std::wstring& symbolicLink);
-    void RequestNextSample();
+    void RequestNextSample(DWORD streamIndex);
 
     FrameQueue<CapturedFrame>& queue_;
     const D3DContext&          ctx_;
@@ -82,6 +83,9 @@ private:
     UINT     videoWidth_  = 0;
     UINT     videoHeight_ = 0;
     double   nativeFPS_   = 60.0;
+    bool     hasAudio_    = false;
+
+    AudioPlayer audioPlayer_;
 
     std::atomic<bool> stop_{ false };
 

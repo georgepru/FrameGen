@@ -228,10 +228,71 @@ void CaptureSource::SetupSourceReader(const std::wstring& symbolicLink)
         }
     }
 
-    // Disable audio streams (we only care about video for this MVP).
+    // Configure audio stream (best-effort pass-through, no A/V sync correction).
+    hasAudio_ = false;
+    {
+        ComPtr<IMFMediaType> nativeAudio;
+        HRESULT hrNativeAudio = reader_->GetNativeMediaType(
+            (DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &nativeAudio);
+
+        if (SUCCEEDED(hrNativeAudio))
+        {
+            UINT32 ch = 0, hz = 0, bits = 0;
+            nativeAudio->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &ch);
+            nativeAudio->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &hz);
+            nativeAudio->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits);
+
+            ComPtr<IMFMediaType> audioOut;
+            if (SUCCEEDED(MFCreateMediaType(&audioOut)) &&
+                SUCCEEDED(audioOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio)) &&
+                SUCCEEDED(audioOut->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM)) &&
+                SUCCEEDED(audioOut->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, ch ? ch : 2)) &&
+                SUCCEEDED(audioOut->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, hz ? hz : 48000)) &&
+                SUCCEEDED(audioOut->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, bits ? bits : 16)) &&
+                SUCCEEDED(reader_->SetCurrentMediaType(
+                    (DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, audioOut.Get())))
+            {
+                ComPtr<IMFMediaType> curAudio;
+                if (SUCCEEDED(reader_->GetCurrentMediaType(
+                        (DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, &curAudio)) &&
+                    audioPlayer_.Open(curAudio.Get()))
+                {
+                    UINT32 outCh = 0, outHz = 0, outBits = 0;
+                    curAudio->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &outCh);
+                    curAudio->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &outHz);
+                    curAudio->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &outBits);
+                    hasAudio_ = true;
+                    printf("[capture] audio enabled: %u Hz, %u-bit, %u ch\n", outHz, outBits, outCh);
+                    fflush(stdout);
+                }
+                else
+                {
+                    printf("[capture] audio stream present but playback init failed\n");
+                    fflush(stdout);
+                }
+            }
+            else
+            {
+                printf("[capture] audio stream present but PCM negotiation failed\n");
+                fflush(stdout);
+            }
+        }
+        else
+        {
+            printf("[capture] no audio stream from capture source\n");
+            fflush(stdout);
+        }
+    }
+
+    // Select streams.
     HR_CHECK(reader_->SetStreamSelection((DWORD)MF_SOURCE_READER_ALL_STREAMS, FALSE));
     HR_CHECK(reader_->SetStreamSelection(
         (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, TRUE));
+    if (hasAudio_)
+    {
+        HR_CHECK(reader_->SetStreamSelection(
+            (DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE));
+    }
 
     printf("[capture] output type set: %ux%u BGRA\n", videoWidth_, videoHeight_);
     fflush(stdout);
@@ -240,25 +301,28 @@ void CaptureSource::SetupSourceReader(const std::wstring& symbolicLink)
 // ---------------------------------------------------------------------------
 void CaptureSource::Start()
 {
-    RequestNextSample();
+    RequestNextSample((DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM);
+    if (hasAudio_)
+        RequestNextSample((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM);
 }
 
 void CaptureSource::Stop()
 {
     stop_ = true;
     queue_.Interrupt();
+    audioPlayer_.Stop();
     if (reader_)
     {
-        reader_->Flush((DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM);
+        reader_->Flush((DWORD)MF_SOURCE_READER_ALL_STREAMS);
         // OnFlush will signal flushEvent_.
         WaitForSingleObject(flushEvent_, 3000);
     }
 }
 
-void CaptureSource::RequestNextSample()
+void CaptureSource::RequestNextSample(DWORD streamIndex)
 {
     if (!stop_ && reader_)
-        reader_->ReadSample((DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+        reader_->ReadSample(streamIndex,
                             0, nullptr, nullptr, nullptr, nullptr);
 }
 
@@ -266,7 +330,7 @@ void CaptureSource::RequestNextSample()
 // IMFSourceReaderCallback::OnReadSample
 // Called on an MF thread-pool thread for every decoded/processed sample.
 // ---------------------------------------------------------------------------
-HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
+HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD streamIndex,
                                      DWORD streamFlags, LONGLONG /*timestamp*/,
                                      IMFSample* pSample)
 {
@@ -284,6 +348,14 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
         return hr;
     }
 
+    if (streamIndex == (DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM)
+    {
+        if ((streamFlags & MF_SOURCE_READERF_STREAMTICK) == 0 && pSample)
+            audioPlayer_.PlaySample(pSample);
+        RequestNextSample(streamIndex);
+        return S_OK;
+    }
+
     // Stream errors / device lost
     if (streamFlags & MF_SOURCE_READERF_ERROR)
     {
@@ -295,7 +367,7 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
     if (!pSample)
     {
         // No sample yet (e.g. device not sending) — request again.
-        RequestNextSample();
+        RequestNextSample(streamIndex);
         return S_OK;
     }
 
@@ -306,7 +378,7 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
     {
         printf("[capture] GetBufferByIndex failed 0x%08X\n", (unsigned)bufHr);
         fflush(stdout);
-        RequestNextSample();
+        RequestNextSample(streamIndex);
         return S_OK;
     }
 
@@ -314,7 +386,7 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
     if (FAILED(buf->QueryInterface(IID_PPV_ARGS(&dxgiBuf))))
     {
         printf("[capture] no DXGI buffer on sample, skipping\n"); fflush(stdout);
-        RequestNextSample();
+        RequestNextSample(streamIndex);
         return S_OK;
     }
 
@@ -322,7 +394,7 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
     UINT subresource = 0;
     if (FAILED(dxgiBuf->GetResource(IID_PPV_ARGS(&tex11))))
     {
-        RequestNextSample();
+        RequestNextSample(streamIndex);
         return S_OK;
     }
     dxgiBuf->GetSubresourceIndex(&subresource);
@@ -344,7 +416,7 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
         printf("[capture] UnwrapUnderlyingResource failed 0x%08X, skipping\n",
                (unsigned)wrapHr);
         fflush(stdout);
-        RequestNextSample();
+        RequestNextSample(streamIndex);
         return S_OK;
     }
 
@@ -418,7 +490,7 @@ HRESULT CaptureSource::OnReadSample(HRESULT hr, DWORD /*streamIndex*/,
         // any D3D11 cleanup (MF texture was already returned above).
     }
 
-    RequestNextSample();
+    RequestNextSample(streamIndex);
     return S_OK;
 
     } // try

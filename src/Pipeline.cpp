@@ -12,6 +12,8 @@ using namespace std::chrono;
 Pipeline::Pipeline(const Config& cfg)
     : cfg_(cfg), hwnd_(cfg.hwnd)
 {
+    showOverlay_.store(!cfg_.noOverlay);
+
     HR_CHECK(MFStartup(MF_VERSION));
 
     // D3D context
@@ -33,6 +35,24 @@ Pipeline::Pipeline(const Config& cfg)
     {
         capture_ = std::make_unique<CaptureSource>(
             cfg_.deviceIndex, captureQueue_, *ctx_);
+        if (!cfg_.noAudio)
+        {
+            try
+            {
+                audioCapture_ = std::make_unique<AudioCaptureSource>(cfg_.captureDeviceName);
+            }
+            catch (const std::exception& ex)
+            {
+                printf("[audio] disabled: %s\n", ex.what());
+                fflush(stdout);
+                audioCapture_.reset();
+            }
+        }
+        else
+        {
+            printf("[audio] disabled (--no-audio)\n");
+            fflush(stdout);
+        }
         vidW = capture_->NativeWidth();
         vidH = capture_->NativeHeight();
     }
@@ -77,7 +97,7 @@ Pipeline::Pipeline(const Config& cfg)
 
     // Overlay (D2D text on top of swap chain back buffers).
     // Skipped in compare mode: swapchain is full-screen dims, not padded-video dims.
-    if (!cfg_.compareMode)
+    if (!cfg_.compareMode && !cfg_.noOverlay)
     {
         try
         {
@@ -93,6 +113,10 @@ Pipeline::Pipeline(const Config& cfg)
                    ex.what()); fflush(stdout);
             overlay_ = nullptr;
         }
+    }
+    else if (cfg_.noOverlay)
+    {
+        printf("[pipeline] overlay disabled (--no-overlay)\n"); fflush(stdout);
     }
 
     // Allocate scratch buffers for 4x recursive interpolation.
@@ -145,6 +169,7 @@ void Pipeline::Start()
     running_ = true;
     if (fileSource_) fileSource_->Start();
     else             capture_->Start();
+    if (audioCapture_) audioCapture_->Start();
 
     captureThread_ = std::thread([this]{ CaptureThread(); });
     rifeThread_    = std::thread([this]{ RifeThread();    });
@@ -159,6 +184,7 @@ void Pipeline::Stop()
     presentQueue_.Interrupt();
 
     if (capture_)    capture_->Stop();
+    if (audioCapture_) audioCapture_->Stop();
     if (fileSource_) fileSource_->Stop();
 
     if (captureThread_.joinable()) captureThread_.join();

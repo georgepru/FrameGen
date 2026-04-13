@@ -10,6 +10,7 @@
 #include "D3DContext.h"
 #include "FrameQueue.h"
 #include "CaptureSource.h"
+#include "AudioCaptureSource.h"
 #include "FileSource.h"
 #include "TextureConverter.h"
 #include "RifeInference.h"
@@ -34,12 +35,15 @@ public:
     struct Config
     {
         UINT         deviceIndex = 0;     // capture device index (see CaptureSource::EnumerateDevices)
+        std::wstring captureDeviceName;    // friendly name of selected video device (used to match audio endpoint)
         std::wstring filePath;             // if non-empty, use FileSource (MP4/MKV) instead of capture card
         std::wstring onnxPath;
         std::wstring logPath;             // telemetry CSV (empty = no log)
         HWND         hwnd       = nullptr;
         bool         debugD3D   = false;
         bool         compareMode    = false; // --compare: show interpolated left, original right
+        bool         noOverlay      = true;  // default safe mode: overlay disabled unless --overlay is passed
+        bool         noAudio        = false; // --no-audio: disable separate audio endpoint capture/playback
         bool         halfRateInput  = false; // --half-rate: consume every other input frame (30fps game in 60fps container)
         bool         fourXMode      = false; // --4x: 3-pass recursive interp 30→120fps (requires 120Hz display)
         UINT         screenW    = 0;      // full screen dimensions for compare mode swapchain
@@ -75,6 +79,7 @@ private:
 
     std::unique_ptr<D3DContext>       ctx_;
     std::unique_ptr<CaptureSource>    capture_;
+    std::unique_ptr<AudioCaptureSource> audioCapture_;
     std::unique_ptr<FileSource>       fileSource_;
     std::unique_ptr<TextureConverter> converter_;
     std::unique_ptr<RifeInference>    rife_;

@@ -40,6 +40,8 @@ endif()
 set(SOURCES
     src/main.cpp
     src/D3DContext.cpp
+    src/AudioPlayer.cpp
+    src/AudioCaptureSource.cpp
     src/CaptureSource.cpp
     src/FileSource.cpp
     src/Overlay.cpp
@@ -107,6 +109,7 @@ target_link_libraries(framegen_mvp PRIVATE
     shell32.lib
     user32.lib
     gdi32.lib
+    winmm.lib
 )
 
 # ── Copy runtime DLLs to output dir ──────────────────────────────────────────

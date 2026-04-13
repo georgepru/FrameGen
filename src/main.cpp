@@ -16,6 +16,15 @@
 // Usage (side-by-side compare: interpolated left, original right):
 //   framegen_mvp.exe --file video.mp4 --compare [rife.onnx]
 //
+// Usage (disable overlay for driver/workaround testing):
+//   framegen_mvp.exe --no-overlay [other flags]
+//
+// Usage (explicitly enable overlay):
+//   framegen_mvp.exe --overlay [other flags]
+//
+// Usage (disable separate audio endpoint capture/playback):
+//   framegen_mvp.exe --no-audio [other flags]
+//
 // Usage (30fps game in 60fps container, e.g. Xbox One S):
 //   framegen_mvp.exe --half-rate [rife.onnx] [deviceIndex]
 //
@@ -122,6 +131,8 @@ int main(int, char**)
     UINT         deviceIndex = 0;
     std::wstring filePath;   // set via --file <path>; empty = use capture card
     bool         compareMode   = false; // --compare: side-by-side comparison window
+    bool         noOverlay     = true;  // default safe mode: overlay disabled unless --overlay is passed
+    bool         noAudio       = false; // --no-audio: disable separate audio endpoint path
     bool         halfRateInput = false; // --half-rate: drop every other input frame
     bool         fourXMode    = false; // --4x: 3-pass 30→120fps (requires 120Hz display)
     bool         debugD3D     = false; // --debug: enable D3D12 debug layer
@@ -135,6 +146,18 @@ int main(int, char**)
         else if (arg == L"--compare" || arg == L"-c")
         {
             compareMode = true;
+        }
+        else if (arg == L"--no-overlay")
+        {
+            noOverlay = true;
+        }
+        else if (arg == L"--overlay")
+        {
+            noOverlay = false;
+        }
+        else if (arg == L"--no-audio")
+        {
+            noAudio = true;
         }
         else if (arg == L"--half-rate" || arg == L"-h")
         {
@@ -234,16 +257,24 @@ int main(int, char**)
     // ── Construct and start pipeline ────────────────────────────────────────
     Pipeline::Config cfg;
     cfg.deviceIndex  = deviceIndex;
+    if (filePath.empty() && deviceIndex < (UINT)devices.size())
+        cfg.captureDeviceName = devices[deviceIndex].friendlyName;
     cfg.filePath     = filePath;
     cfg.onnxPath     = onnxPath;
     cfg.logPath      = logPath;
     cfg.hwnd         = hwnd;
     cfg.debugD3D     = debugD3D;
     cfg.compareMode  = compareMode;
+    cfg.noOverlay    = noOverlay;
+    cfg.noAudio      = noAudio;
     cfg.halfRateInput = halfRateInput;
     cfg.fourXMode    = fourXMode;
     cfg.screenW      = (UINT)GetSystemMetrics(SM_CXSCREEN);
     cfg.screenH      = (UINT)GetSystemMetrics(SM_CYSCREEN);
+
+    printf("[main] overlay mode: %s\n", cfg.noOverlay ? "OFF (--no-overlay default)" : "ON (--overlay)");
+    printf("[main] audio mode: %s\n", cfg.noAudio ? "OFF (--no-audio)" : "ON (default)");
+    fflush(stdout);
 
     int exitCode = 0;
     try
