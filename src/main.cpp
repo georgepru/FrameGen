@@ -45,6 +45,43 @@
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "dbghelp.lib")
+
+// ---------------------------------------------------------------------------
+// Minidump on unhandled exception (catches hard crashes bypassing catch blocks)
+// ---------------------------------------------------------------------------
+static LONG WINAPI UnhandledExceptionHandler(EXCEPTION_POINTERS* ep)
+{
+    WCHAR exeDir[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, exeDir, MAX_PATH);
+    std::wstring dumpPath(exeDir);
+    auto slash = dumpPath.find_last_of(L"\\/");
+    if (slash != std::wstring::npos) dumpPath.resize(slash + 1);
+    dumpPath += L"framegen_crash.dmp";
+
+    HANDLE hFile = CreateFileW(dumpPath.c_str(), GENERIC_WRITE, 0,
+                               nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        MINIDUMP_EXCEPTION_INFORMATION mei = {};
+        mei.ThreadId          = GetCurrentThreadId();
+        mei.ExceptionPointers = ep;
+        mei.ClientPointers    = FALSE;
+        MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(),
+                          hFile,
+                          (MINIDUMP_TYPE)(MiniDumpWithDataSegs | MiniDumpWithUnloadedModules),
+                          &mei, nullptr, nullptr);
+        CloseHandle(hFile);
+    }
+
+    // Also append to crash log.
+    char msg[128];
+    snprintf(msg, sizeof(msg), "unhandled exception code 0x%08X — minidump written",
+             ep ? ep->ExceptionRecord->ExceptionCode : 0u);
+    WriteCrashLog("unhandled exception filter", msg);
+
+    return EXCEPTION_CONTINUE_SEARCH; // let Windows default handler run (shows crash dialog)
+}
 
 // ---------------------------------------------------------------------------
 static Pipeline* g_pipeline = nullptr;
@@ -95,7 +132,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 }
 
 // ---------------------------------------------------------------------------
-static HWND CreateFullscreenWindow(HINSTANCE hInst)
+static HWND CreateFullscreenWindow(HINSTANCE hInst, bool hidden = false)
 {
     WNDCLASSEXW wc   = {};
     wc.cbSize        = sizeof(wc);
@@ -106,12 +143,13 @@ static HWND CreateFullscreenWindow(HINSTANCE hInst)
     wc.lpszClassName = L"FrameGenMVP";
     RegisterClassExW(&wc);
 
-    int sw = GetSystemMetrics(SM_CXSCREEN);
-    int sh = GetSystemMetrics(SM_CYSCREEN);
+    int sw = hidden ? 1 : GetSystemMetrics(SM_CXSCREEN);
+    int sh = hidden ? 1 : GetSystemMetrics(SM_CYSCREEN);
+    DWORD style = hidden ? WS_POPUP : (WS_POPUP | WS_VISIBLE);
 
     HWND hwnd = CreateWindowExW(
         0, wc.lpszClassName, L"Frame Generation MVP",
-        WS_POPUP | WS_VISIBLE,
+        style,
         0, 0, sw, sh,
         nullptr, nullptr, hInst, nullptr);
 
@@ -121,6 +159,7 @@ static HWND CreateFullscreenWindow(HINSTANCE hInst)
 // ---------------------------------------------------------------------------
 int main(int, char**)
 {
+    SetUnhandledExceptionFilter(UnhandledExceptionHandler);
     SetConsoleOutputCP(CP_UTF8);  // Prevent garbled UTF-8 box chars in Windows console
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
@@ -141,6 +180,13 @@ int main(int, char**)
     bool         halfRateInput = false; // --half-rate: drop every other input frame
     bool         fourXMode    = false; // --4x: 3-pass 30→120fps (requires 120Hz display)
     bool         debugD3D     = false; // --debug: enable D3D12 debug layer
+    bool upscale720to1080  = false;
+    bool upscale720to1440  = false;
+    bool upscale1080to1440 = false;
+    bool upscale1080to4k   = false;
+    bool listDevices   = false;
+    bool fsr           = false;
+    bool benchmarkMode = false;
     for (int i = 1; i < argc; ++i)
     {
         std::wstring arg(argv[i]);
@@ -184,6 +230,34 @@ int main(int, char**)
         {
             debugD3D = true;
         }
+        else if (arg == L"--upscaled-720-to-1080")
+        {
+            upscale720to1080 = true;
+        }
+        else if (arg == L"--upscaled-720-to-1440")
+        {
+            upscale720to1440 = true;
+        }
+        else if (arg == L"--upscaled-1080-to-1440")
+        {
+            upscale1080to1440 = true;
+        }
+        else if (arg == L"--upscaled-1080-to-4k")
+        {
+            upscale1080to4k = true;
+        }
+        else if (arg == L"--fsr")
+        {
+            fsr = true;
+        }
+        else if (arg == L"--list-devices")
+        {
+            listDevices = true;
+        }
+        else if (arg == L"--benchmark")
+        {
+            benchmarkMode = true;
+        }
         else if (arg.size() > 5 &&
                  (arg.substr(arg.size()-4) == L".mp4"  ||
                   arg.substr(arg.size()-4) == L".mkv"  ||
@@ -209,6 +283,18 @@ int main(int, char**)
     HR_CHECK(MFStartup(MF_VERSION));
 
     auto devices = CaptureSource::EnumerateDevices();
+
+    // --list-devices: print one device per line then exit cleanly.
+    if (listDevices)
+    {
+        for (size_t i = 0; i < devices.size(); ++i)
+            wprintf(L"%zu: %ls\n", i, devices[i].friendlyName.c_str());
+        fflush(stdout);
+        MFShutdown();
+        CoUninitialize();
+        return 0;
+    }
+
     if (filePath.empty())
     {
         // Live capture mode — require a capture card.
@@ -286,6 +372,13 @@ int main(int, char**)
     cfg.fourXMode    = fourXMode;
     cfg.screenW      = (UINT)GetSystemMetrics(SM_CXSCREEN);
     cfg.screenH      = (UINT)GetSystemMetrics(SM_CYSCREEN);
+    cfg.upscale720to1080  = upscale720to1080;
+    cfg.upscale720to1440  = upscale720to1440;
+    cfg.upscale1080to1440 = upscale1080to1440;
+    cfg.upscale1080to4k   = upscale1080to4k;
+    cfg.fsr               = fsr;
+    if (benchmarkMode)
+        cfg.noLoop = true;
 
     printf("[main] overlay mode: %s\n", cfg.noOverlay ? "OFF (--no-overlay default)" : "ON (--overlay)");
     printf("[main] audio mode: %s\n", cfg.noAudio ? "OFF (--no-audio)" : "ON (default)");
@@ -304,17 +397,42 @@ int main(int, char**)
         pipeline.Start();
 
         // ── Message loop ────────────────────────────────────────────────────
+        // In benchmark mode use PeekMessage so we can also poll IsRunning()
+        // and auto-quit when the file source finishes.
         MSG msg = {};
-        while (GetMessageW(&msg, nullptr, 0, 0))
+        if (benchmarkMode)
         {
-            if (pipeline.ThreadFailed())
+            while (true)
             {
-                MessageBoxA(nullptr, pipeline.ThreadError().c_str(),
-                            "Thread Error", MB_OK | MB_ICONERROR);
-                break;
+                while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
+                {
+                    if (msg.message == WM_QUIT) goto benchmark_done;
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+                if (!pipeline.IsRunning())
+                {
+                    PostQuitMessage(0);
+                    break;
+                }
+                if (pipeline.ThreadFailed()) break;
+                Sleep(50);
             }
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
+            benchmark_done:;
+        }
+        else
+        {
+            while (GetMessageW(&msg, nullptr, 0, 0))
+            {
+                if (pipeline.ThreadFailed())
+                {
+                    MessageBoxA(nullptr, pipeline.ThreadError().c_str(),
+                                "Thread Error", MB_OK | MB_ICONERROR);
+                    break;
+                }
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
         }
 
         g_pipeline = nullptr;
@@ -324,11 +442,17 @@ int main(int, char**)
         printf("\n--- Final telemetry ---\n%s\n",
                pipeline.GetTelemetry().StatsLine().c_str());
         wprintf(L"Log written to: %ls\n", logPath.c_str());
+        if (benchmarkMode)
+        {
+            double avgMs = pipeline.GetTelemetry().MeanInferMs();
+            printf("BENCHMARK_RESULT avg_ms=%.2f\n", avgMs);
+        }
         fflush(stdout);
     }
     catch (const std::exception& e)
     {
         printf("[main] FATAL: %s\n", e.what()); fflush(stdout);
+        WriteCrashLog("main", e.what());
         MessageBoxA(nullptr, e.what(), "Fatal Error", MB_OK | MB_ICONERROR);
         exitCode = 1;
     }

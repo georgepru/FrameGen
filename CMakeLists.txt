@@ -74,8 +74,9 @@ endfunction()
 
 compile_shader(${SHADER_DIR}/BGRAtoNCHW.hlsl  main   cs_5_0  g_BGRAtoNCHW    BGRAtoNCHW.h)
 compile_shader(${SHADER_DIR}/NearDuplicateCS.hlsl main cs_5_0 g_NearDuplicateCS NearDuplicateCS.h)
-compile_shader(${SHADER_DIR}/NCHWPresent.hlsl  VSMain vs_5_0  g_NCHWPresentVS NCHWPresentVS.h)
-compile_shader(${SHADER_DIR}/NCHWPresent.hlsl  PSMain ps_5_0  g_NCHWPresentPS NCHWPresentPS.h)
+compile_shader(${SHADER_DIR}/NCHWPresent.hlsl       VSMain vs_5_0  g_NCHWPresentVS    NCHWPresentVS.h)
+compile_shader(${SHADER_DIR}/NCHWPresent.hlsl       PSMain ps_5_0  g_NCHWPresentPS    NCHWPresentPS.h)
+compile_shader(${SHADER_DIR}/NCHWPresentFSRPS.hlsl  PSMain ps_5_0  g_NCHWPresentFSRPS NCHWPresentFSRPS.h)
 compile_shader(${SHADER_DIR}/BGRAPresent.hlsl  VSMain vs_5_0  g_BGRAPresentVS BGRAPresentVS.h)
 compile_shader(${SHADER_DIR}/BGRAPresent.hlsl  PSMain ps_5_0  g_BGRAPresentPS BGRAPresentPS.h)
 
@@ -130,6 +131,7 @@ if(MSVC)
         /MP          # parallel compilation
         /Zi          # debug info in all configs
         /O2          # optimisation (Release) — cmake sets this per-config
+        /EHa         # async exception handling: catch(...) catches SEH (access violations etc.)
     )
     target_compile_definitions(framegen_mvp PRIVATE
         WIN32_LEAN_AND_MEAN

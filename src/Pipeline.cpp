@@ -10,7 +10,11 @@ using namespace std::chrono;
 
 // ---------------------------------------------------------------------------
 Pipeline::Pipeline(const Config& cfg)
-    : cfg_(cfg), hwnd_(cfg.hwnd)
+        : cfg_(cfg), hwnd_(cfg.hwnd),
+            upscale720to1080_(cfg.upscale720to1080),
+            upscale720to1440_(cfg.upscale720to1440),
+            upscale1080to1440_(cfg.upscale1080to1440),
+            upscale1080to4k_(cfg.upscale1080to4k)
 {
     showOverlay_.store(!cfg_.noOverlay);
 
@@ -43,7 +47,7 @@ Pipeline::Pipeline(const Config& cfg)
     if (!cfg_.filePath.empty())
     {
         fileSource_ = std::make_unique<FileSource>(
-            cfg_.filePath, captureQueue_, *ctx_);
+            cfg_.filePath, captureQueue_, *ctx_, !cfg_.noLoop);
         vidW = fileSource_->NativeWidth();
         vidH = fileSource_->NativeHeight();
     }
@@ -84,8 +88,23 @@ Pipeline::Pipeline(const Config& cfg)
 
     converter_ = std::make_unique<TextureConverter>(*ctx_);
     rife_      = std::make_unique<RifeInference>(cfg_.onnxPath, *ctx_, pw, ph);
-    presenter_ = std::make_unique<SwapPresenter>(hwnd_, *ctx_, pw, ph,
-                     cfg_.compareMode, cfg_.screenW, cfg_.screenH);
+    // When upscaling, create swapchain at target resolution; NCHWPresent PS
+    // bilinearly maps 1080p NCHW buffer UVs to the larger viewport.
+    UINT presW = cfg_.upscale1080to4k  ? 3840
+               : cfg_.upscale1080to1440 ? 2560
+               : cfg_.upscale720to1440  ? 2560
+               : cfg_.upscale720to1080  ? 1920
+               : pw;
+    UINT presH = cfg_.upscale1080to4k  ? 2160
+               : cfg_.upscale1080to1440 ? 1440
+               : cfg_.upscale720to1440  ? 1440
+               : cfg_.upscale720to1080  ? 1080
+               : ph;
+    if (presW != pw || presH != ph)
+        printf("[upscale] swapchain %ux%u (source %ux%u) mode=%s\n",
+               presW, presH, pw, ph, cfg_.fsr ? "FSR1" : "bilinear");
+    presenter_ = std::make_unique<SwapPresenter>(hwnd_, *ctx_, presW, presH,
+                     cfg_.compareMode, cfg_.screenW, cfg_.screenH, cfg_.fsr);
 
     // Allocate reference BGRA texture for compare mode (right-half original frame)
     if (cfg_.compareMode && vidW > 0 && vidH > 0)
@@ -525,12 +544,17 @@ void Pipeline::RifeThread()
 
             prevFrame = std::move(frame);
         }
+        // Normal exit (captureQueue interrupted / EOS no-loop):
+        // cascade shutdown so PresentThread unblocks and pipeline stops.
+        presentQueue_.Interrupt();
+        running_ = false;
     }
     catch (const std::exception& e)
     {
         threadError_  = std::string("RIFE thread: ") + e.what();
         threadFailed_ = true;
         printf("[rife] EXCEPTION: %s\n", e.what()); fflush(stdout);
+        WriteCrashLog("RIFE thread", e.what());
         running_ = false;
         captureQueue_.Interrupt();
         presentQueue_.Interrupt();
@@ -541,6 +565,7 @@ void Pipeline::RifeThread()
         threadError_  = "RIFE thread: unknown exception";
         threadFailed_ = true;
         printf("[rife] UNKNOWN EXCEPTION\n"); fflush(stdout);
+        WriteCrashLog("RIFE thread", "unknown exception (SEH or non-std)");
         running_ = false;
         captureQueue_.Interrupt();
         presentQueue_.Interrupt();
@@ -567,9 +592,13 @@ void Pipeline::PresentThread()
 
             const PresentFrame& pf = *pfOpt;
 
+
             if (pf.nchwBuf)
             {
                 std::string stats = showOverlay_ ? telemetry_->StatsLine() : std::string{};
+                // Upscaling is handled by the swapchain size set at construction:
+                // swapchain is presW x presH but NCHW buffer is native vidW x vidH.
+                // NCHWPresent PS bilinearly maps the larger viewport UVs to 1080p source.
                 presenter_->Present(pf.nchwBuf, pf.vidW, pf.vidH,
                                     pf.paddedW, pf.paddedH, stats.c_str(),
                                     pf.bgraRef);
@@ -612,6 +641,7 @@ void Pipeline::PresentThread()
         threadError_  = std::string("Present thread: ") + e.what() + removedBuf;
         threadFailed_ = true;
         printf("[present] EXCEPTION: %s%s\n", e.what(), removedBuf); fflush(stdout);
+        WriteCrashLog("Present thread", (std::string(e.what()) + removedBuf).c_str());
         running_ = false;
         captureQueue_.Interrupt();
         presentQueue_.Interrupt();
@@ -622,6 +652,7 @@ void Pipeline::PresentThread()
         threadError_  = "Present thread: unknown exception";
         threadFailed_ = true;
         printf("[present] UNKNOWN EXCEPTION\n"); fflush(stdout);
+        WriteCrashLog("Present thread", "unknown exception (SEH or non-std)");
         running_ = false;
         captureQueue_.Interrupt();
         presentQueue_.Interrupt();

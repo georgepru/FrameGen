@@ -1,0 +1,7 @@
+﻿{
+    "devIdx":  0,
+    "scale":  "4K",
+    "onnx":  "rife_1080p.onnx",
+    "fsr":  true,
+    "noAudio":  false
+}

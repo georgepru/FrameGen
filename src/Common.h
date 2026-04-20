@@ -11,6 +11,7 @@
 #endif
 #include <windows.h>
 #include <wrl/client.h>   // ComPtr<>
+#include <dbghelp.h>
 
 // ---- Direct3D 12 ----------------------------------------------------------
 #include <d3d12.h>
@@ -41,6 +42,8 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <ctime>
+#include <fstream>
 #include <mutex>
 #include <optional>
 #include <queue>
@@ -82,3 +85,31 @@ using Microsoft::WRL::ComPtr;
 
 // ---- Utility: round up to next multiple of 32 ----------------------------
 inline UINT PadTo32(UINT v) { return (v + 31u) & ~31u; }
+
+// ---- Crash log ------------------------------------------------------------
+// Writes a timestamped crash entry to framegen_crash.log next to the exe.
+// Thread-safe (internal mutex). Call from any catch block.
+inline void WriteCrashLog(const char* source, const char* message)
+{
+    static std::mutex s_mu;
+    std::lock_guard<std::mutex> lk(s_mu);
+
+    // Resolve path next to the running exe.
+    WCHAR exePath[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    std::wstring logPath(exePath);
+    auto slash = logPath.find_last_of(L"\\/");
+    if (slash != std::wstring::npos) logPath.resize(slash + 1);
+    logPath += L"framegen_crash.log";
+
+    std::ofstream f(logPath, std::ios::app);
+    if (!f) return;
+
+    // Timestamp (local time).
+    std::time_t now = std::time(nullptr);
+    char timebuf[32] = {};
+    std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+
+    f << "[" << timebuf << "] " << source << ": " << message << "\n";
+    f.flush();
+}

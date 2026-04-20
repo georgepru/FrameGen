@@ -208,7 +208,12 @@ bool NearDuplicateDetector::IsNearDuplicate(ID3D12Resource* prevTex,
     UINT changed = 0;
     void* mapped = nullptr;
     D3D12_RANGE readRange = { 0, sizeof(UINT) };
-    HR_CHECK(counterReadback_->Map(0, &readRange, &mapped));
+    HRESULT mapHr = counterReadback_->Map(0, &readRange, &mapped);
+    if (FAILED(mapHr)) {
+        // Device likely removed (0x887A0005) — skip readback, treat as non-duplicate
+        if (outChangedPixels) *outChangedPixels = UINT_MAX;
+        return false;
+    }
     changed = *reinterpret_cast<UINT*>(mapped);
     counterReadback_->Unmap(0, nullptr);
 

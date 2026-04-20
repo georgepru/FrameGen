@@ -48,17 +48,34 @@ float4 PSMain(VSOut i) : SV_Target
     if (any(videoUV < 0.0f) || any(videoUV > 1.0f))
         return float4(0, 0, 0, 1);
 
-    uint px = (uint)(videoUV.x * Width);
-    uint py = (uint)(videoUV.y * Height);
-    px = min(px, Width  - 1u);
-    py = min(py, Height - 1u);
+    // Bilinear sampling from NCHW buffer.
+    // Works correctly at 1:1 (frac=0 → identical to nearest) and for upscaling.
+    float2 coord = videoUV * float2(Width, Height) - 0.5;
+    int2   c0    = int2(floor(coord));
+    int2   c1    = c0 + int2(1, 1);
+    float2 f     = frac(coord);
+
+    // Clamp to valid range
+    uint px0 = (uint)clamp(c0.x, 0, (int)Width  - 1);
+    uint py0 = (uint)clamp(c0.y, 0, (int)Height - 1);
+    uint px1 = (uint)clamp(c1.x, 0, (int)Width  - 1);
+    uint py1 = (uint)clamp(c1.y, 0, (int)Height - 1);
 
     uint planeSize = Stride * Height;
-    uint idx       = py * Stride + px;
 
-    float r = nchwBuf[0u * planeSize + idx];
-    float g = nchwBuf[1u * planeSize + idx];
-    float b = nchwBuf[2u * planeSize + idx];
+    // 4-tap bilinear for each channel
+    float r = lerp(lerp((float)nchwBuf[0u*planeSize + py0*Stride + px0],
+                        (float)nchwBuf[0u*planeSize + py0*Stride + px1], f.x),
+                   lerp((float)nchwBuf[0u*planeSize + py1*Stride + px0],
+                        (float)nchwBuf[0u*planeSize + py1*Stride + px1], f.x), f.y);
+    float g = lerp(lerp((float)nchwBuf[1u*planeSize + py0*Stride + px0],
+                        (float)nchwBuf[1u*planeSize + py0*Stride + px1], f.x),
+                   lerp((float)nchwBuf[1u*planeSize + py1*Stride + px0],
+                        (float)nchwBuf[1u*planeSize + py1*Stride + px1], f.x), f.y);
+    float b = lerp(lerp((float)nchwBuf[2u*planeSize + py0*Stride + px0],
+                        (float)nchwBuf[2u*planeSize + py0*Stride + px1], f.x),
+                   lerp((float)nchwBuf[2u*planeSize + py1*Stride + px0],
+                        (float)nchwBuf[2u*planeSize + py1*Stride + px1], f.x), f.y);
 
     if (Gamma != 1.0f)
     {

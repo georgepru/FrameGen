@@ -7,6 +7,7 @@
 
 #include "NCHWPresentVS.h"
 #include "NCHWPresentPS.h"
+#include "NCHWPresentFSRPS.h"
 #include "BGRAPresentVS.h"
 #include "BGRAPresentPS.h"
 
@@ -15,11 +16,13 @@
 // ---------------------------------------------------------------------------
 SwapPresenter::SwapPresenter(HWND hwnd, const D3DContext& ctx,
                              UINT paddedW, UINT paddedH,
-                             bool compareMode, UINT screenW, UINT screenH)
+                             bool compareMode, UINT screenW, UINT screenH,
+                             bool useFsr)
     : ctx_(ctx)
     , width_ (compareMode && screenW ? screenW : paddedW)
     , height_(compareMode && screenH ? screenH : paddedH)
     , compareMode_(compareMode)
+    , useFsr_(useFsr)
 {
     auto* dev     = ctx_.device12.Get();
     auto* queue   = ctx_.cmdQueue12.Get();
@@ -149,7 +152,9 @@ void SwapPresenter::BuildPipeline()
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.pRootSignature        = rootSig_.Get();
     psoDesc.VS                    = { g_NCHWPresentVS, sizeof(g_NCHWPresentVS) };
-    psoDesc.PS                    = { g_NCHWPresentPS, sizeof(g_NCHWPresentPS) };
+    psoDesc.PS                    = useFsr_
+                                    ? D3D12_SHADER_BYTECODE{ g_NCHWPresentFSRPS, sizeof(g_NCHWPresentFSRPS) }
+                                    : D3D12_SHADER_BYTECODE{ g_NCHWPresentPS,    sizeof(g_NCHWPresentPS) };
     psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
     psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;

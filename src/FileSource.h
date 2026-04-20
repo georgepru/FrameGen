@@ -20,7 +20,8 @@ class FileSource
 public:
     FileSource(const std::wstring& filePath,
                FrameQueue<CapturedFrame>& queue,
-               const D3DContext& ctx);
+               const D3DContext& ctx,
+               bool loop = true);
     ~FileSource();
 
     void Start();
@@ -53,6 +54,7 @@ private:
     ComPtr<ID3D12GraphicsCommandList> cmdList_;
     D3DContext::FenceSync             fence_;
 
+    bool              loop_   = true;
     std::thread       thread_;
     std::atomic<bool> running_{ false };
 };

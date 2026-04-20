@@ -17,8 +17,9 @@
 // ---------------------------------------------------------------------------
 FileSource::FileSource(const std::wstring& filePath,
                        FrameQueue<CapturedFrame>& queue,
-                       const D3DContext& ctx)
-    : filePath_(filePath), queue_(queue), ctx_(ctx)
+                       const D3DContext& ctx,
+                       bool loop)
+    : filePath_(filePath), queue_(queue), ctx_(ctx), loop_(loop)
 {
     OpenFile();
     AllocateUploadResources();
@@ -155,9 +156,17 @@ void FileSource::ThreadProc()
 
         if (FAILED(hr) || !running_) break;
 
-        // End of stream → loop back to start.
+        // End of stream → loop back to start, or stop if noLoop.
         if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
         {
+            if (!loop_)
+            {
+                printf("[filesource] end of file, stopping (benchmark mode)\n");
+                fflush(stdout);
+                running_ = false;
+                queue_.Interrupt();   // unblock RIFE thread → cascades to pipeline stop
+                break;
+            }
             PROPVARIANT var;
             PropVariantInit(&var);
             var.vt            = VT_I8;

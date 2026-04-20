@@ -34,7 +34,7 @@ private:
     ComPtr<ID3D12GraphicsCommandList> cmdList_;
     D3DContext::FenceSync sync_;
 
-    static constexpr UINT kGridW = 64;
-    static constexpr UINT kGridH = 36;
+    static constexpr UINT kGridW = 256;
+    static constexpr UINT kGridH = 144;
     static constexpr float kColorDiffThreshold = 0.015f;
 };

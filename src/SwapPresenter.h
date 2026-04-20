@@ -6,6 +6,7 @@
 #include "D3DContext.h"
 #include "Overlay.h"
 #include <atomic>
+#include <memory>
 
 class SwapPresenter
 {
@@ -14,7 +15,8 @@ public:
     static constexpr UINT MAX_FRAME_LATENCY = 1;  // tightest: 1 frame queued
 
     SwapPresenter(HWND hwnd, const D3DContext& ctx, UINT paddedW, UINT paddedH,
-                  bool compareMode = false, UINT screenW = 0, UINT screenH = 0);
+                  bool compareMode = false, UINT screenW = 0, UINT screenH = 0,
+                  bool useFsr = false);
     ~SwapPresenter();
 
     // Present the NCHW float16 output buffer to the display.
@@ -52,6 +54,7 @@ private:
     const D3DContext& ctx_;
     UINT width_, height_;      // swapchain dimensions (full screen in compare mode)
     bool     compareMode_      = false;
+    bool     useFsr_           = false;
     bool     interpolationEnabled_ = true;
     Overlay* overlay_              = nullptr;
 

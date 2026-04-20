@@ -48,9 +48,15 @@ public:
         bool         gpuDedupe      = false; // --gpu-dedupe: skip near-identical captured frames
         UINT         dedupeThreshold = 12;   // max changed sampled pixels to treat as duplicate
         bool         halfRateInput  = false; // --half-rate: consume every other input frame (30fps game in 60fps container)
+        bool         noLoop         = false; // if true, FileSource stops after one pass (used by benchmark mode)
         bool         fourXMode      = false; // --4x: 3-pass recursive interp 30→120fps (requires 120Hz display)
         UINT         screenW    = 0;      // full screen dimensions for compare mode swapchain
         UINT         screenH    = 0;
+        bool         upscale720to1080  = false;
+        bool         upscale720to1440  = false;
+        bool         upscale1080to1440 = false;
+        bool         upscale1080to4k   = false;
+        bool         fsr               = false;
     };
 
     explicit Pipeline(const Config& cfg);
@@ -73,6 +79,10 @@ public:
     const Telemetry& GetTelemetry() const { return *telemetry_; }
 
 private:
+    bool upscale720to1080_  = false;
+    bool upscale720to1440_  = false;
+    bool upscale1080to1440_ = false;
+    bool upscale1080to4k_   = false;
     void CaptureThread();
     void RifeThread();
     void PresentThread();
