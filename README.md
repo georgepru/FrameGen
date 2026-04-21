@@ -1,3 +1,6 @@
+<img width="399" height="113" alt="60vs30Low" src="https://github.com/user-attachments/assets/e97dbceb-d6d4-40ad-88af-32354af34c2e" />
+<img width="400" height="114" alt="60vs30_SpinLow" src="https://github.com/user-attachments/assets/16d2d3ff-d802-43fd-96df-85d92f6102dd" />
+
 # FrameGen
 
 Real-time frame generation project designed for console games that were locked to 30fps and never got a PC port. With a capture card and a decent GPU, a RIFE neural network is used to interpolate new frames, and presents the result fullscreen at 60fps.
