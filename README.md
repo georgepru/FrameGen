@@ -11,45 +11,16 @@ Real-time AI frame doubling for capture card gaming. Captures HDMI input, uses a
 - A GPU with DirectML support — NVIDIA RTX 30xx / 40xx recommended
 - The game or source running on a **separate PC or console** outputting HDMI to the capture card
 
-## Getting Started
+## Quick Start
 
-### 1. Download
+1. **Download** `FrameGen_v1.0.zip` from the [Releases page](https://github.com/georgepru/FrameGen/releases) and extract it
+2. **Run** `launcher.exe`
+3. **Benchmark** — click **Run Benchmark (experimental)** and wait for a recommended settings popup
+4. **Configure** — pick your capture device, ONNX model, and any upscale/audio options
+5. **Launch** — hit **Launch**; a fullscreen interpolated output window opens at 2× your source frame rate
+6. Press **Q** or **Esc** to close the program
 
-Grab the latest release from the [Releases page](https://github.com/georgepru/FrameGen/releases). You need:
-
-- `launcher.exe` — the GUI launcher
-- `framegen_mvp.exe` — the engine
-- `onnxruntime.dll` + `onnxruntime_providers_shared.dll` — bundled, no install needed
-
-Put all four files in the same folder.
-
-### 2. First launch — download models
-
-Run `launcher.exe`. On first launch it opens the **Setup** tab automatically.
-
-Click **Download** next to the model that matches your capture resolution:
-- **720p model** (~19 MB) — for 720p/1080i capture
-- **1080p model** (~30 MB) — for 1080p capture
-
-Wait for the download to finish, then click **Run Benchmark** to verify your GPU can handle real-time inference.
-
-### 3. Configure and run
-
-Switch to the **Main** tab:
-
-1. Pick your capture device from the dropdown
-2. Pick your ONNX model (720p or 1080p)
-3. Toggle **No Audio** or **FSR upscale** if you want them
-4. Hit **Launch**
-
-A fullscreen window opens showing the interpolated output at 2× your source frame rate.
-
-### Key bindings (while running)
-
-| Key | Action |
-|-----|--------|
-| `I` | Toggle RIFE interpolation on/off |
-| `Q` / `Esc` | Quit |
+> ⚠️ This is an experimental project. There are known issues — see the [Issues page](https://github.com/georgepru/FrameGen/issues).
 
 ## Building from source
 
