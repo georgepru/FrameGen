@@ -12,11 +12,11 @@ Real-time frame generation project designed for console games that were locked t
 
 ## Quick Start
 
-1. **Download** `FrameGen_v1.0.zip` from the [Releases page](https://github.com/georgepru/FrameGen/releases) and extract it somewhere on your pc. 
-2. **Run** `launcher.exe`
-3. **Benchmark** — click **Run Benchmark (experimental)** which will recommended settings
-4. **Configure** — pick your capture device, ONNX model, and any upscale/audio options
-5. **Launch** — hit **Launch**; a fullscreen interpolated output window opens at 60fps
+1. **Download:** `FrameGen_v1.0.zip` from the [Releases page](https://github.com/georgepru/FrameGen/releases) and extract it somewhere on your pc. 
+2. **Run:** `launcher.exe`
+3. **Benchmark:** — click **Run Benchmark (experimental)** which will recommended settings
+4. **Configure:** — pick your capture device, ONNX model, and any upscale/audio options
+5. **Launch:** — hit **Launch**; a fullscreen interpolated output window opens at 60fps
 6. Press **Q** or **Esc** to close the program
 
 > ⚠️ This is an experimental project. There are known issues — see the [Issues page](https://github.com/georgepru/FrameGen/issues).
