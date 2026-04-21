@@ -1,114 +1,74 @@
-# Frame Generation MVP
+# FrameGen
 
-Live HDMI capture → RIFE frame interpolation → fullscreen display. Proves the pipeline latency claim from the MVP document.
+Real-time AI frame doubling for capture card gaming. Captures HDMI input, uses a RIFE neural network to interpolate new frames, and presents the result fullscreen at 2× the source frame rate — all on your GPU with no game modifications required.
+
+> **Note:** This repo includes a precompiled `framegen_mvp.exe`. The full source is also here if you want to build it yourself.
 
 ## Requirements
 
 - Windows 10 22H2+ (x64)
-- Visual Studio 2022 with C++ Desktop workload
-- Windows SDK 10.0.22621+
-- Elgato 4K X (USB) or Elgato 4K Pro (PCIe) capture card
-- GPU with D3D12 feature level 12.0 + DirectML support (RTX 30xx/40xx recommended)
-- ONNX Runtime 1.24+ with DirectML EP — see **Setup** below
+- A capture card (Elgato 4K X USB or 4K Pro PCIe tested; other DirectShow/MF cards may work)
+- A GPU with DirectML support — NVIDIA RTX 30xx / 40xx recommended
+- The game or source running on a **separate PC or console** outputting HDMI to the capture card
 
-## Setup
+## Getting Started
 
-### 1. ONNX Runtime
+### 1. Download
 
-Download the DirectML zip from the [ORT releases page](https://github.com/microsoft/onnxruntime/releases):
+Grab the latest release from the [Releases page](https://github.com/georgepru/FrameGen/releases). You need:
 
-```
-onnxruntime-win-x64-directml-1.24.4.zip
-```
+- `launcher.exe` — the GUI launcher
+- `framegen_mvp.exe` — the engine
+- `onnxruntime.dll` + `onnxruntime_providers_shared.dll` — bundled, no install needed
 
-Extract into `deps/onnxruntime/`. The expected layout after extraction:
+Put all four files in the same folder.
 
-```
-deps/onnxruntime/
-  include/onnxruntime_cxx_api.h
-  include/dml_provider_factory.h
-  lib/onnxruntime.lib
-  lib/onnxruntime.dll
-  lib/onnxruntime_providers_shared.dll
-```
+### 2. First launch — download models
 
-### 2. RIFE model
+Run `launcher.exe`. On first launch it opens the **Setup** tab automatically.
 
-Export the RIFE model to ONNX using the existing `preview_cpp/export_onnx.py` script, or copy `rife_hd.onnx` from `preview_cpp/` and rename it to `rife.onnx` in the build output dir.
+Click **Download** next to the model that matches your capture resolution:
+- **720p model** (~19 MB) — for 720p/1080i capture
+- **1080p model** (~30 MB) — for 1080p capture
 
-## Build
+Wait for the download to finish, then click **Run Benchmark** to verify your GPU can handle real-time inference.
+
+### 3. Configure and run
+
+Switch to the **Main** tab:
+
+1. Pick your capture device from the dropdown
+2. Pick your ONNX model (720p or 1080p)
+3. Toggle **No Audio** or **FSR upscale** if you want them
+4. Hit **Launch**
+
+A fullscreen window opens showing the interpolated output at 2× your source frame rate.
+
+### Key bindings (while running)
+
+| Key | Action |
+|-----|--------|
+| `I` | Toggle RIFE interpolation on/off |
+| `Q` / `Esc` | Quit |
+
+## Building from source
 
 ```powershell
 cmake -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ```
 
-Output: `build\Release\framegen_mvp.exe`
+Requires Visual Studio 2022 with the C++ Desktop workload, Windows SDK 10.0.22621+, and the ONNX Runtime DirectML package in `deps/onnxruntime/`.
 
-## Run
-
-```
-framegen_mvp.exe [rife.onnx] [deviceIndex]
-```
-
-- `rife.onnx` defaults to the file in the same directory as the exe.
-- `deviceIndex` defaults to `0` (first capture card).
-
-### Key bindings
-
-| Key | Action |
-|-----|--------|
-| `I` | Toggle RIFE interpolation on/off |
-| `D` | Print capture device list to stdout |
-| `Q` / `Esc` | Quit |
-
-## Architecture
+## How it works
 
 ```
-HDMI → Elgato 4K X (USB)
-     → Media Foundation Source Reader (MF_LOW_LATENCY, D3D11 GPU path)
-     → CapturedFrame (BGRA D3D12 texture via D3D11On12)
-     → TextureConverter (BGRA → NCHW float32, compute shader)
-     → RifeInference (ONNX Runtime + DirectML EP, zero-copy DML tensors)
-     → SwapPresenter (DXGI flip-discard, waitable object, tearing-allowed)
-     → Fullscreen display
+HDMI → Capture card → Media Foundation
+     → BGRA texture (D3D12)
+     → RIFE neural net (ONNX Runtime + DirectML)
+     → 2× frame rate output (DXGI flip-discard, tearing-allowed)
 ```
 
-### Threads
+## License
 
-| Thread | Role |
-|--------|------|
-| CaptureThread | Keeps MF alive; frames arrive via MF async callback |
-| RifeThread | Pairs frames, runs BGRA→NCHW + RIFE, enqueues present |
-| PresentThread | Dequeues and calls SwapPresenter::Present |
-
-### Latency controls
-
-- `MF_LOW_LATENCY = TRUE` on the source reader reduces MF internal buffering.
-- `FrameQueue` depth of 3 (capture) and 2 (present) — stale frames are dropped.
-- `SetMaximumFrameLatency(1)` + waitable object on the swap chain.
-- `DXGI_PRESENT_ALLOW_TEARING` = immediate present, no vsync wait.
-- Dedicated `dmlQueue12` for ORT/DML, isolated from D3D11On12 to prevent TDR.
-
-## Telemetry
-
-A CSV log (`framegen_log.csv`, next to the exe) is written on exit with per-frame timing:
-
-| Column | Description |
-|--------|-------------|
-| `captureArrivalUs` | MF callback → queue push, microseconds from first frame |
-| `rifeStartUs` | inference start |
-| `rifeEndUs` | inference end |
-| `presentedUs` | Present() called |
-| `inferenceMs` | RIFE duration in milliseconds |
-| `dropped` | 1 = frame was dropped from the queue |
-
-Live stats are printed to stdout (input FPS, output FPS, RIFE ms, dropped frames).
-
-## Known limitations (MVP scope)
-
-- No audio pass-through.
-- No recording or stream output.
-- Single capture card only.
-- Pass-through mode (I key off) does not blit the BGRA frame — this is a Phase 4 polish item.
-- Swap chain resolution is locked to the capture card's native output; window resize is not handled.
+MIT — see [LICENSE](LICENSE).

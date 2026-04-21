@@ -5,3 +5,12 @@ deps/onnxruntime/
 *.onnx
 flownet_*.pkl
 __pycache__/
+
+# Personal / temp files
+launcher_settings.json
+crash_4x.log
+err.txt
+NEXT_STEPS.md
+STRUCTURE.txt
+check_syntax.ps1
+*.log
