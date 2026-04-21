@@ -1,6 +1,6 @@
 # FrameGen
 
-Real-time AI frame doubling for capture card gaming. Captures HDMI input, uses a RIFE neural network to interpolate new frames, and presents the result fullscreen at 2× the source frame rate — all on your GPU with no game modifications required.
+Real-time frame generation project designed for console games that were locked to 30fps and never got a PC port. Captures HDMI input, uses a RIFE neural network to interpolate new frames, and presents the result fullscreen at 2× the source frame rate — all on your GPU with no game modifications required.
 
 > **Note:** This repo includes a precompiled `framegen_mvp.exe`. The full source is also here if you want to build it yourself.
 
