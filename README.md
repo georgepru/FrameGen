@@ -6,8 +6,8 @@ Real-time frame generation project designed for console games that were locked t
 
 ## Requirements
 
-- A capture card (Elgato 4K X USB or 4K Pro PCIe tested; other DirectShow/MF cards may work)
-- A GPU with DirectML support — at least NVIDIA RTX 30xx recommended
+- A capture card (Elgato 4K Pro PCIe tested; other DirectShow/MF cards may work)
+- A GPU with DirectML support (at least NVIDIA RTX 30xx recommended)
 - The game or source running on a **separate PC or console** outputting 30fps HDMI signal to the capture card
 
 ## Quick Start
