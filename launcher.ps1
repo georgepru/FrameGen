@@ -1,7 +1,11 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-$exePath = Join-Path $PSScriptRoot "build\Release\framegen_mvp.exe"
+# $PSScriptRoot is empty in ps2exe; use exe's own directory instead
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else {
+    [System.IO.Path]::GetDirectoryName([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
+}
+$exePath = Join-Path $scriptDir "framegen_mvp.exe"
 
 # ── Form ──────────────────────────────────────────────────────────────────────
 $form               = New-Object Windows.Forms.Form
@@ -241,7 +245,7 @@ $script:benchOutFile = ""
 $script:benchLogPos  = 0
 
 $btnBenchmark.Add_Click({
-    $testDir  = Join-Path $PSScriptRoot "testdata"
+    $testDir  = Join-Path $scriptDir "testdata"
     $test1080 = Join-Path $testDir "1080p_test.mp4"
     $test720  = Join-Path $testDir "720p_test.mp4"
 
@@ -713,7 +717,7 @@ function Start-ModelDownload($basename) {
 $btn720.Add_Click({  Start-ModelDownload "rife_720p.onnx"  })
 $btn1080.Add_Click({ Start-ModelDownload "rife_1080p.onnx" })
 
-$settingsPath = Join-Path $PSScriptRoot "launcher_settings.json"
+$settingsPath = Join-Path $scriptDir "launcher_settings.json"
 
 function Save-Settings {
     $s = @{
