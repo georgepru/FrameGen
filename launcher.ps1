@@ -2,10 +2,11 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # $PSScriptRoot is empty in ps2exe; use exe's own directory instead
-$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else {
+$global:appDir = if ($PSScriptRoot -and $PSScriptRoot -ne '') { $PSScriptRoot } else {
     [System.IO.Path]::GetDirectoryName([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
 }
-$exePath = Join-Path $scriptDir "framegen_mvp.exe"
+$global:exePath = Join-Path $global:appDir "framegen_mvp.exe"
+$exePath = $global:exePath
 
 # ── Form ──────────────────────────────────────────────────────────────────────
 $form               = New-Object Windows.Forms.Form
@@ -15,17 +16,7 @@ $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox   = $false
 $form.Font          = New-Object Drawing.Font("Segoe UI", 9)
 
-# Update this URL when you upload the ONNX files as GitHub release assets.
-$MODELS_BASE_URL = "https://github.com/georgepru/FrameGen/releases/download/v1.0/"
 
-# ── Tab control ───────────────────────────────────────────────────────────────
-$tab      = New-Object Windows.Forms.TabControl
-$tab.Dock = "Fill"
-$form.Controls.Add($tab)
-
-$tabMain  = New-Object Windows.Forms.TabPage ; $tabMain.Text  = "Main"
-$tabSetup = New-Object Windows.Forms.TabPage ; $tabSetup.Text = "Setup"
-$tab.TabPages.AddRange(@($tabMain, $tabSetup))
 
 $pad = 10
 $y   = $pad
@@ -35,7 +26,7 @@ function New-Group($text, $height) {
     $g.Text     = $text
     $g.Location = New-Object Drawing.Point($pad, $script:y)
     $g.Size     = New-Object Drawing.Size(414, $height)
-    $tabMain.Controls.Add($g)
+    $form.Controls.Add($g)
     $script:y  += $height + 6
     return $g
 }
@@ -160,14 +151,14 @@ $grpScale.Controls.AddRange(@($radNone, $rad720to1080, $rad720to1440, $rad1440, 
 
 # ── Benchmark button ──────────────────────────────────────────────────────────
 $btnBenchmark           = New-Object Windows.Forms.Button
-$btnBenchmark.Text      = "Run Benchmark  (auto-detect best settings)"
-$btnBenchmark.Location  = New-Object Drawing.Point(10, 228)
+$btnBenchmark.Text      = "Run Benchmark  (experimental)"
+$btnBenchmark.Location  = New-Object Drawing.Point($pad, $y)
 $btnBenchmark.Size      = New-Object Drawing.Size(414, 30)
 $btnBenchmark.Font      = New-Object Drawing.Font("Segoe UI", 9)
 $btnBenchmark.BackColor = [Drawing.Color]::FromArgb(60, 60, 80)
 $btnBenchmark.ForeColor = [Drawing.Color]::FromArgb(200, 220, 255)
 $btnBenchmark.FlatStyle = "Flat"
-$tabSetup.Controls.Add($btnBenchmark)
+$form.Controls.Add($btnBenchmark)
 $y += 38
 
 # ── Launch button ─────────────────────────────────────────────────────────────
@@ -179,7 +170,7 @@ $btnLaunch.Font      = New-Object Drawing.Font("Segoe UI", 11, [Drawing.FontStyl
 $btnLaunch.BackColor = [Drawing.Color]::FromArgb(0, 120, 212)
 $btnLaunch.ForeColor = [Drawing.Color]::White
 $btnLaunch.FlatStyle = "Flat"
-$tabMain.Controls.Add($btnLaunch)
+$form.Controls.Add($btnLaunch)
 $y += 46
 
 # ── Log box ───────────────────────────────────────────────────────────────────
@@ -196,9 +187,7 @@ $txtLog.BackColor  = [Drawing.Color]::FromArgb(20, 20, 20)
 $txtLog.ForeColor  = [Drawing.Color]::FromArgb(180, 255, 180)
 $grpLog.Controls.Add($txtLog)
 
-$tabContentH = $y + 10
-$formH = $tabContentH + 30
-$form.ClientSize = New-Object Drawing.Size(434, $formH)
+$form.ClientSize = New-Object Drawing.Size(434, ($y + 20))
 
 # ── State ─────────────────────────────────────────────────────────────────────
 $script:proc   = $null
@@ -245,7 +234,7 @@ $script:benchOutFile = ""
 $script:benchLogPos  = 0
 
 $btnBenchmark.Add_Click({
-    $testDir  = Join-Path $scriptDir "testdata"
+    $testDir  = Join-Path $global:appDir "testdata"
     $test1080 = Join-Path $testDir "1080p_test.mp4"
     $test720  = Join-Path $testDir "720p_test.mp4"
 
@@ -270,9 +259,9 @@ $btnBenchmark.Add_Click({
     $txtLog.Clear()
     $txtLog.AppendText("=== Benchmark: 1080p test ===`r`n")
 
-    $exeP   = $exePath
-    $onnxP  = Join-Path (Split-Path $exePath) $cmbOnnx.SelectedItem
-    $wdPath = Split-Path $exePath
+    $exeP   = $global:exePath
+    $onnxP  = Join-Path $global:appDir $cmbOnnx.SelectedItem
+    $wdPath = $global:appDir
     $myPid  = [Diagnostics.Process]::GetCurrentProcess().Id
     $o1080  = Join-Path $env:TEMP "fg_bench1080_$myPid.txt"
     $o720   = Join-Path $env:TEMP "fg_bench720_$myPid.txt"
@@ -368,7 +357,7 @@ $btnBenchmark.Add_Click({
         # All phases done
         $script:benchTimer.Stop()
         $btnBenchmark.Enabled = $true
-        $btnBenchmark.Text    = "Run Benchmark  (auto-detect best settings)"
+        $btnBenchmark.Text    = "Run Benchmark  (experimental)"
         $txtLog.AppendText("`r`n=== Benchmark complete ===`r`n")
 
         $ms1080 = $script:benchMs1080
@@ -469,7 +458,7 @@ $btnLaunch.Add_Click({
     if ($rad1440.Checked)      { $args.Add("--upscaled-1080-to-1440") }
     if ($rad4K.Checked)        { $args.Add("--upscaled-1080-to-4k") }
     if ($chkFSR.Checked)      { $args.Add("--fsr") }
-    $args.Add((Join-Path (Split-Path $exePath) $cmbOnnx.SelectedItem))
+    $args.Add((Join-Path $global:appDir $cmbOnnx.SelectedItem))
     # Resolve selected dropdown item to device index
     $selIdx = $cmbDev.SelectedIndex
     $devIdx = if ($script:deviceMap.ContainsKey($selIdx)) { $script:deviceMap[$selIdx] } else { 0 }
@@ -482,9 +471,9 @@ $btnLaunch.Add_Click({
     $txtLog.AppendText("$ framegen_mvp.exe $argStr`r`n`r`n")
 
     $psi                        = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName               = $exePath
+    $psi.FileName               = $global:exePath
     $psi.Arguments              = $argStr
-    $psi.WorkingDirectory       = Split-Path $exePath
+    $psi.WorkingDirectory       = $global:appDir
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError  = $true
     $psi.UseShellExecute        = $false
@@ -536,188 +525,7 @@ $btnLaunch.Add_Click({
     $script:timer.Start()
 })
 
-# ── Setup tab ─────────────────────────────────────────────────────────────────
-$grpModels          = New-Object Windows.Forms.GroupBox
-$grpModels.Text     = "RIFE Models"
-$grpModels.Location = New-Object Drawing.Point(10, 10)
-$grpModels.Size     = New-Object Drawing.Size(414, 270)
-$tabSetup.Controls.Add($grpModels)
-
-$lblModelInfo          = New-Object Windows.Forms.Label
-$lblModelInfo.Text     = "Download RIFE interpolation models to build\Release\."
-$lblModelInfo.Location = New-Object Drawing.Point(8, 22)
-$lblModelInfo.Size     = New-Object Drawing.Size(398, 18)
-$grpModels.Controls.Add($lblModelInfo)
-
-# 720p row
-$lbl720           = New-Object Windows.Forms.Label
-$lbl720.Text      = "rife_720p.onnx"
-$lbl720.Location  = New-Object Drawing.Point(8, 52)
-$lbl720.Size      = New-Object Drawing.Size(158, 18)
-$grpModels.Controls.Add($lbl720)
-
-$lbl720Status          = New-Object Windows.Forms.Label
-$lbl720Status.Location = New-Object Drawing.Point(170, 52)
-$lbl720Status.Size     = New-Object Drawing.Size(102, 18)
-$grpModels.Controls.Add($lbl720Status)
-
-$btn720           = New-Object Windows.Forms.Button
-$btn720.Text      = "Download"
-$btn720.Location  = New-Object Drawing.Point(278, 48)
-$btn720.Size      = New-Object Drawing.Size(128, 26)
-$btn720.FlatStyle = "Flat"
-$grpModels.Controls.Add($btn720)
-
-# 1080p row
-$lbl1080           = New-Object Windows.Forms.Label
-$lbl1080.Text      = "rife_1080p.onnx"
-$lbl1080.Location  = New-Object Drawing.Point(8, 84)
-$lbl1080.Size      = New-Object Drawing.Size(158, 18)
-$grpModels.Controls.Add($lbl1080)
-
-$lbl1080Status          = New-Object Windows.Forms.Label
-$lbl1080Status.Location = New-Object Drawing.Point(170, 84)
-$lbl1080Status.Size     = New-Object Drawing.Size(102, 18)
-$grpModels.Controls.Add($lbl1080Status)
-
-$btn1080           = New-Object Windows.Forms.Button
-$btn1080.Text      = "Download"
-$btn1080.Location  = New-Object Drawing.Point(278, 80)
-$btn1080.Size      = New-Object Drawing.Size(128, 26)
-$btn1080.FlatStyle = "Flat"
-$grpModels.Controls.Add($btn1080)
-
-$progressDl          = New-Object Windows.Forms.ProgressBar
-$progressDl.Location = New-Object Drawing.Point(8, 120)
-$progressDl.Size     = New-Object Drawing.Size(398, 18)
-$progressDl.Visible  = $false
-$grpModels.Controls.Add($progressDl)
-
-$lblDlStatus          = New-Object Windows.Forms.Label
-$lblDlStatus.Location = New-Object Drawing.Point(8, 144)
-$lblDlStatus.Size     = New-Object Drawing.Size(398, 18)
-$lblDlStatus.Text     = ""
-$grpModels.Controls.Add($lblDlStatus)
-
-$lblModelNote           = New-Object Windows.Forms.Label
-$lblModelNote.Text      = "Models are ~19 MB each. An internet connection is required."
-$lblModelNote.Location  = New-Object Drawing.Point(8, 192)
-$lblModelNote.Size      = New-Object Drawing.Size(398, 18)
-$lblModelNote.ForeColor = [Drawing.Color]::Gray
-$grpModels.Controls.Add($lblModelNote)
-
-function Update-ModelStatus {
-    $relDir = Split-Path $exePath
-    $minSz  = 10 * 1024 * 1024
-    foreach ($pair in @(
-        @("rife_720p.onnx",  $lbl720Status),
-        @("rife_1080p.onnx", $lbl1080Status)
-    )) {
-        $onnx = Join-Path $relDir $pair[0]
-        $data = $onnx + ".data"
-        $lbl  = $pair[1]
-        # Valid = .onnx exists AND (.data exists with real weight data OR .onnx itself is large)
-        $onnxOk = (Test-Path $onnx)
-        $dataOk = (Test-Path $data) -and (Get-Item $data).Length -gt $minSz
-        $selfOk = $onnxOk -and (Get-Item $onnx).Length -gt $minSz
-        if ($onnxOk -and ($dataOk -or $selfOk)) {
-            $mb = [math]::Round(((Get-Item $onnx).Length + $(if (Test-Path $data) { (Get-Item $data).Length } else { 0 })) / 1MB, 0)
-            $lbl.Text      = "Present  ($mb MB)"
-            $lbl.ForeColor = [Drawing.Color]::FromArgb(80, 200, 80)
-        } else {
-            $lbl.Text      = "Missing"
-            $lbl.ForeColor = [Drawing.Color]::FromArgb(220, 80, 80)
-        }
-    }
-}
-
-# Downloads a queue of [url, destPath] pairs sequentially, one at a time.
-$script:dlWc       = $null
-$script:dlQueue    = @()
-$script:dlLabel    = ""
-
-function Invoke-NextDownload {
-    if ($script:dlQueue.Count -eq 0) {
-        # All done
-        $progressDl.Visible = $false
-        $lblDlStatus.Text   = "Download complete."
-        Update-ModelStatus
-        $cmbOnnx.Items.Clear()
-        Get-ChildItem (Split-Path $exePath) -Filter "*.onnx" -ErrorAction SilentlyContinue |
-            Sort-Object Name | ForEach-Object { [void]$cmbOnnx.Items.Add($_.Name) }
-        $defItem = $cmbOnnx.Items | Where-Object { $_ -eq "rife_1080p.onnx" } | Select-Object -First 1
-        $cmbOnnx.SelectedIndex = if ($defItem) { $cmbOnnx.Items.IndexOf($defItem) } else { 0 }
-        $btn720.Enabled  = $true
-        $btn1080.Enabled = $true
-        $script:dlWc     = $null
-        return
-    }
-
-    $pair   = $script:dlQueue[0]
-    $script:dlQueue = $script:dlQueue[1..($script:dlQueue.Count - 1)]
-    $url    = $pair[0]
-    $dest   = $pair[1]
-    $fname  = Split-Path $url -Leaf
-    $lblDlStatus.Text   = "Downloading $fname..."
-    $progressDl.Value   = 0
-    $progressDl.Visible = $true
-
-    $script:dlWc = New-Object Net.WebClient
-    $script:dlWc.add_DownloadProgressChanged({
-        param($s, $e)
-        $form.Invoke([Action]{
-            $progressDl.Value = [Math]::Min($e.ProgressPercentage, 100)
-            $total = if ($e.TotalBytesToReceive -gt 0) {
-                "$([Math]::Round($e.TotalBytesToReceive / 1MB, 1)) MB"
-            } else { "?" }
-            $lblDlStatus.Text = "$(Split-Path $s.BaseAddress.AbsolutePath -Leaf): " +
-                "$([Math]::Round($e.BytesReceived / 1MB, 1)) / $total  ($($e.ProgressPercentage)%)"
-        })
-    })
-    $script:dlWc.add_DownloadFileCompleted({
-        param($s, $e)
-        $form.Invoke([Action]{
-            if ($e.Cancelled -or $e.Error) {
-                $progressDl.Visible = $false
-                $lblDlStatus.Text   = if ($e.Error) { "Error: $($e.Error.Message)" } else { "Cancelled." }
-                $btn720.Enabled  = $true
-                $btn1080.Enabled = $true
-                $script:dlQueue  = @()
-                $script:dlWc     = $null
-            } else {
-                Invoke-NextDownload
-            }
-        })
-    })
-    try {
-        $script:dlWc.DownloadFileAsync([Uri]$url, $dest)
-    } catch {
-        $lblDlStatus.Text   = "Failed to start: $_"
-        $progressDl.Visible = $false
-        $btn720.Enabled     = $true
-        $btn1080.Enabled    = $true
-        $script:dlQueue     = @()
-        $script:dlWc        = $null
-    }
-}
-
-function Start-ModelDownload($basename) {
-    if ($script:dlWc -ne $null) { return }
-    $relDir = Split-Path $exePath
-    $btn720.Enabled     = $false
-    $btn1080.Enabled    = $false
-    # Queue both the .onnx graph and the .onnx.data weights file
-    $script:dlQueue = @(
-        @($MODELS_BASE_URL + $basename,         (Join-Path $relDir $basename)),
-        @($MODELS_BASE_URL + $basename + ".data", (Join-Path $relDir ($basename + ".data")))
-    )
-    Invoke-NextDownload
-}
-
-$btn720.Add_Click({  Start-ModelDownload "rife_720p.onnx"  })
-$btn1080.Add_Click({ Start-ModelDownload "rife_1080p.onnx" })
-
-$settingsPath = Join-Path $scriptDir "launcher_settings.json"
+$global:settingsPath = Join-Path $global:appDir "launcher_settings.json"
 
 function Save-Settings {
     $s = @{
@@ -731,13 +539,13 @@ function Save-Settings {
                   elseif ($rad4K.Checked) { "4K" }
                   else { "none" }
     }
-    $s | ConvertTo-Json | Set-Content $settingsPath -Encoding UTF8
+    $s | ConvertTo-Json | Set-Content $global:settingsPath -Encoding UTF8
 }
 
 function Load-Settings {
-    if (-not (Test-Path $settingsPath)) { return }
+    if (-not (Test-Path $global:settingsPath)) { return }
     try {
-        $s = Get-Content $settingsPath -Raw | ConvertFrom-Json
+        $s = Get-Content $global:settingsPath -Raw | ConvertFrom-Json
         if ($s.onnx -and $cmbOnnx.Items.Contains($s.onnx)) {
             $cmbOnnx.SelectedIndex = $cmbOnnx.Items.IndexOf($s.onnx)
         }
@@ -760,8 +568,5 @@ $form.Add_FormClosing({ Save-Settings })
 
 [Windows.Forms.Application]::EnableVisualStyles()
 Refresh-Devices
-Update-ModelStatus
 Load-Settings
-# First launch (no settings file) → open Setup tab
-if (-not (Test-Path $settingsPath)) { $tab.SelectedTab = $tabSetup }
 [Windows.Forms.Application]::Run($form)
