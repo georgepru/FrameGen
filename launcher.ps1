@@ -222,21 +222,23 @@ function Apply-RecommendedSettings($rec) {
     if ($rec.fsr -and $chkFSR.Enabled) { $chkFSR.Checked = $true }
 }
 
-$script:benchJob     = $null
-$script:benchTimer   = $null
-$script:benchDots    = 0
-$script:benchPhase   = ""
-$script:benchMs1080  = [double]-2
-$script:benchMs720   = [double]-2
-$script:benchOut1080 = ""
-$script:benchOut720  = ""
-$script:benchOutFile = ""
-$script:benchLogPos  = 0
+$script:benchJob      = $null
+$script:benchTimer    = $null
+$script:benchDots     = 0
+$script:benchPhase    = ""
+$script:benchMs1080   = [double]-2
+$script:benchMs720    = [double]-2
+$script:benchOut1080  = ""
+$script:benchOut720   = ""
+$script:benchOutFile  = ""
+$script:benchLogPos   = 0
 
 $btnBenchmark.Add_Click({
-    $testDir  = Join-Path $global:appDir "testdata"
-    $test1080 = Join-Path $testDir "1080p_test.mp4"
-    $test720  = Join-Path $testDir "720p_test.mp4"
+    $testDir              = Join-Path $global:appDir "testdata"
+    $script:benchTest1080 = Join-Path $testDir "1080p_test.mp4"
+    $script:benchTest720  = Join-Path $testDir "720p_test.mp4"
+    $test1080 = $script:benchTest1080
+    $test720  = $script:benchTest720
 
     foreach ($f in @($test1080, $test720)) {
         if (-not (Test-Path $f)) {
@@ -259,9 +261,10 @@ $btnBenchmark.Add_Click({
     $txtLog.Clear()
     $txtLog.AppendText("=== Benchmark: 1080p test ===`r`n")
 
-    $exeP   = $global:exePath
-    $onnxP  = Join-Path $global:appDir $cmbOnnx.SelectedItem
-    $wdPath = $global:appDir
+    $script:benchExeP    = $global:exePath
+    $script:benchOnnxP   = Join-Path $global:appDir $cmbOnnx.SelectedItem
+    $script:benchOnnxP720 = Join-Path $global:appDir "rife_720p.onnx"
+    $script:benchWdPath  = $global:appDir
     $myPid  = [Diagnostics.Process]::GetCurrentProcess().Id
     $o1080  = Join-Path $env:TEMP "fg_bench1080_$myPid.txt"
     $o720   = Join-Path $env:TEMP "fg_bench720_$myPid.txt"
@@ -283,7 +286,7 @@ $btnBenchmark.Add_Click({
         $raw = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
         if ($raw -match 'BENCHMARK_RESULT avg_ms=([0-9.]+)') { return [double]$Matches[1] }
         return [double]-1
-    } -ArgumentList $exeP, $onnxP, $test1080, $wdPath, $o1080
+    } -ArgumentList $script:benchExeP, $script:benchOnnxP, $script:benchTest1080, $script:benchWdPath, $o1080
 
     if ($script:benchTimer) { $script:benchTimer.Stop(); $script:benchTimer.Dispose() }
     $script:benchTimer = New-Object Windows.Forms.Timer
@@ -345,7 +348,7 @@ $btnBenchmark.Add_Click({
                     $raw = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
                     if ($raw -match 'BENCHMARK_RESULT avg_ms=([0-9.]+)') { return [double]$Matches[1] }
                     return [double]-1
-                } -ArgumentList $exeP, $onnxP, $test720, $wdPath, $script:benchOut720
+                } -ArgumentList $script:benchExeP, $script:benchOnnxP720, $script:benchTest720, $script:benchWdPath, $script:benchOut720
                 return
             }
             $script:benchMs720 = [double]-1
