@@ -30,15 +30,6 @@ Real-time frame generation project designed for console games that were locked t
 
 > ⚠️ This is an experimental project. There are known issues — see the [Issues page](https://github.com/georgepru/FrameGen/issues).
 
-## Building from source
-
-```powershell
-cmake -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-```
-
-Requires Visual Studio 2022 with the C++ Desktop workload, Windows SDK 10.0.22621+, and the ONNX Runtime DirectML package in `deps/onnxruntime/`.
-
 ## How it works
 
 ```
