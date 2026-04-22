@@ -9,7 +9,9 @@ youtube video offers better visual comparison. https://youtu.be/7uzpwJY4t-Q
 
 Real-time frame generation project designed for console games that were locked to 30fps and never got a PC port. With a capture card and a decent GPU, a RIFE neural network is used to interpolate new frames, and presents the result fullscreen at 60fps.
 
-> **Note:** This repo includes a precompiled `framegen_mvp.exe`. The full source is also here if you want to build it yourself.
+> **Note:** This repo includes a precompiled `framegen_mvp.exe`. The core rendering pipeline is closed-source; the launcher and supporting code are public.
+>
+> **Security:** 71/72 antivirus engines report clean. The one flag (Rising AI heuristic) is a known false positive for unsigned D3D12/ONNX binaries. [VirusTotal scan →](https://www.virustotal.com/gui/file/019c4f854a7f39eed19ebf3a1813d034b764c59bbce10aa04e1b54c70b1f4c91)
 
 ## Requirements
 
